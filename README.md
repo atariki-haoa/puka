@@ -3,8 +3,7 @@
 A VSCode-like TUI code editor for current Linux/macOS terminals, built in
 C++20 with [FTXUI](https://github.com/ArthurSonzogni/FTXUI) (UI),
 [tree-sitter](https://github.com/tree-sitter/tree-sitter) (syntax
-highlighting) and [libgit2](https://github.com/libgit2/libgit2) (git
-integration, later phase).
+highlighting) and [libgit2](https://github.com/libgit2/libgit2) (git status).
 
 Full vibecoding made, born by the necesity to get a simple TUI code editor.
 
@@ -15,9 +14,17 @@ Enjoy!
 A 20%/80% sidebar/editor split, an Explorer file tree with icons (ASCII
 fallback by default, `--nerd-font` for graphical icons), multi-tab file
 open/edit/save, a visible block cursor, line numbers, and a focus indicator
-(the active pane's divider turns cyan). Git status is designed but not built
-yet -- the Source Control sidebar tab still shows a "coming in a later
-phase" placeholder.
+(the active pane's divider turns cyan).
+
+**Git status** (`Alt+G`) shows the current branch and every changed file with
+a two-letter porcelain-style badge (`A `/`M `/`??`/`MM`/etc. -- staged and
+unstaged deltas are independent, so a file with both shows both), read-only
+(no staging/committing). Matching files in the Explorer tree get the same
+single-letter badge (unstaged wins when a file has both). Refreshes on
+startup, on every `Alt+G`, after every save, and on `F5` while Source Control
+is focused. Silently shows "Not a git repository" outside a git workspace.
+Badges can get squeezed out by a long filename in a narrow sidebar -- resize
+the terminal wider if one seems to be missing.
 
 **Syntax highlighting** (VSCode Dark+-approximating colors) works for C, C++,
 Python, JavaScript, TypeScript, TSX, JSON, and Bash, detected by file
@@ -84,6 +91,7 @@ cd build && ctest --output-on-failure
 | Next / previous tab | `Ctrl+Right` / `Ctrl+Left` |
 | Undo / Redo | `Ctrl+Z` / `Ctrl+Y` |
 | Move / select | Arrows, Home, End, PageUp, PageDown |
+| Refresh git status (while Source Control is focused) | `F5` |
 
 A few of these diverge from VSCode's literal defaults on purpose: terminals
 collapse `Ctrl+Shift+<letter>` to the same byte sequence as `Ctrl+<letter>`,

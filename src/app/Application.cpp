@@ -3,7 +3,6 @@
 #include <algorithm>
 
 #include <ftxui/component/component.hpp>
-#include <ftxui/dom/elements.hpp>
 #include <ftxui/screen/terminal.hpp>
 
 #include "keys/KeymapDefaults.hpp"
@@ -14,16 +13,6 @@
 
 namespace puka {
 using namespace ftxui;
-
-namespace {
-
-Component PlaceholderView(std::string message) {
-  return Renderer([message] {
-    return vbox({filler(), hcenter(text(message) | dim), filler()});
-  });
-}
-
-}  // namespace
 
 Application::Application(std::filesystem::path workspace_root)
     : workspace_root_(std::move(workspace_root)),

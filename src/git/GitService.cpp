@@ -86,7 +86,11 @@ GitRepoStatus GetRepoStatus(const std::filesystem::path& root) {
   if (const char* workdir_cstr = git_repository_workdir(repo)) {
     std::string workdir = workdir_cstr;
 
-    git_status_options opts = GIT_STATUS_OPTIONS_INIT;
+    // Zero-init (not the GIT_STATUS_OPTIONS_INIT macro, which only sets
+    // `version` and triggers -Wmissing-field-initializers under -Wextra)
+    // then set version manually, per git_status_options_init's own contract.
+    git_status_options opts{};
+    opts.version = GIT_STATUS_OPTIONS_VERSION;
     opts.show = GIT_STATUS_SHOW_INDEX_AND_WORKDIR;
     // Deliberately not GIT_STATUS_OPT_INCLUDE_IGNORED (matches VSCode's
     // default of not cluttering the view with ignored files) and not
