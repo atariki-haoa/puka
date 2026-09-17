@@ -1,10 +1,14 @@
-# puka
+# PUKA
 
 A VSCode-like TUI code editor for current Linux/macOS terminals, built in
 C++20 with [FTXUI](https://github.com/ArthurSonzogni/FTXUI) (UI),
 [tree-sitter](https://github.com/tree-sitter/tree-sitter) (syntax
 highlighting) and [libgit2](https://github.com/libgit2/libgit2) (git
 integration, later phase).
+
+Full vibecoding made, born by the necesity to get a simple TUI code editor.
+
+Enjoy!
 
 ## Status
 
