@@ -43,6 +43,18 @@ UI on a huge repo); results are capped at 500 with a "(truncated)" note
 rather than silently dropping the rest. `ArrowDown` from the query box moves
 into the results list, `ArrowUp` at the top result moves back.
 
+## Install
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/atariki-haoa/puka/main/install.sh | bash
+```
+
+Clones the repo into a temp dir, builds a release binary, and installs it to
+`~/.local/bin/puka` (set `PREFIX=/usr/local` to install system-wide instead).
+Add `~/.local/bin` to your `PATH` if it isn't already. There are no prebuilt
+binaries yet, so this still does a full source build under the hood -- see
+Build below for what that entails.
+
 ## Build
 
 ```bash
@@ -52,6 +64,10 @@ sudo apt-get install -y cmake   # or: brew install cmake
 
 cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug
 cmake --build build -j"$(nproc)"
+
+# Optional: install the built binary (defaults to /usr/local/bin; override
+# with -DCMAKE_INSTALL_PREFIX=... at configure time).
+cmake --install build
 ```
 
 The first configure takes a few minutes (fetches and builds FTXUI); later

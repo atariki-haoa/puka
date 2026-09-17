@@ -9,3 +9,5 @@ add_subdirectory(app)
 
 add_executable(puka main.cpp)
 target_link_libraries(puka PRIVATE puka_app)
+
+install(TARGETS puka RUNTIME DESTINATION bin)
