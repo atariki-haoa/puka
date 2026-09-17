@@ -11,8 +11,8 @@ Enjoy!
 
 ## Status
 
-A 20%/80% sidebar/editor split, an Explorer file tree with icons (ASCII
-fallback by default, `--nerd-font` for graphical icons), multi-tab file
+A 20%/80% sidebar/editor split, an Explorer file tree with icons (Nerd Font
+glyphs by default, `--no-nerd-font` for plain ASCII icons), multi-tab file
 open/edit/save, a visible block cursor, line numbers, and a focus indicator
 (the active pane's divider turns cyan).
 
@@ -53,7 +53,12 @@ Clones the repo into a temp dir, builds a release binary, and installs it to
 `~/.local/bin/puka` (set `PREFIX=/usr/local` to install system-wide instead).
 Add `~/.local/bin` to your `PATH` if it isn't already. There are no prebuilt
 binaries yet, so this still does a full source build under the hood -- see
-Build below for what that entails.
+Build below for what that entails. Since puka's icons default to Nerd Font
+glyphs, the installer also checks whether a
+[Nerd Font](https://www.nerdfonts.com/) is already installed and, if not,
+offers to download and install one (JetBrainsMono Nerd Font) before
+building -- remember to select it in your terminal profile's font settings
+afterwards.
 
 ## Build
 
@@ -76,17 +81,19 @@ configures are cached under `build/_deps`.
 ## Run
 
 ```bash
-./build/src/puka [path]               # defaults to the current directory
-./build/src/puka --nerd-font [path]   # use graphical icons instead of text glyphs
+./build/src/puka [path]                  # defaults to the current directory
+./build/src/puka --no-nerd-font [path]   # use plain text glyphs instead of graphical icons
 ```
 
-`--nerd-font` requires your terminal to actually be using a
-[Nerd Font](https://www.nerdfonts.com/) patched font (e.g. "FiraCode Nerd
-Font", "JetBrainsMono Nerd Font") -- otherwise the icons render as broken
-boxes/tofu characters. It's off by default (plain ASCII icons) for exactly
-that reason. On Ubuntu, `sudo apt install fonts-firacode` does not include
-the Nerd Font patch -- download a patched font from nerdfonts.com and select
-it in your terminal profile's font settings first.
+By default puka uses [Nerd Font](https://www.nerdfonts.com/) glyphs, which
+requires your terminal to actually be using a Nerd Font patched font (e.g.
+"FiraCode Nerd Font", "JetBrainsMono Nerd Font") -- otherwise the icons
+render as broken boxes/tofu characters. `install.sh` checks for one and
+offers to install it for you; if you built from source manually and don't
+have one, pass `--no-nerd-font` for plain ASCII icons instead. On Ubuntu,
+`sudo apt install fonts-firacode` does not include the Nerd Font patch --
+download a patched font from nerdfonts.com and select it in your terminal
+profile's font settings first.
 
 ## Test
 

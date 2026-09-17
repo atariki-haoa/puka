@@ -12,6 +12,9 @@ set -euo pipefail
 REPO_URL="https://github.com/atariki-haoa/puka.git"
 PREFIX="${PREFIX:-$HOME/.local}"
 
+WORKDIR="$(mktemp -d)"
+trap 'rm -rf "$WORKDIR"' EXIT
+
 if ! command -v cmake >/dev/null 2>&1; then
   echo "error: cmake is required but was not found on PATH." >&2
   echo "Install it first (e.g. 'sudo apt-get install cmake' or 'brew install cmake')." >&2
@@ -22,8 +25,86 @@ if ! command -v git >/dev/null 2>&1; then
   exit 1
 fi
 
-WORKDIR="$(mktemp -d)"
-trap 'rm -rf "$WORKDIR"' EXIT
+# puka's icons default to Nerd Font glyphs (broken boxes/tofu without one),
+# so check for one before building and offer to install one if missing.
+NERD_FONT_NAME="JetBrainsMono"
+FONT_DIRS=(
+  "$HOME/.local/share/fonts"
+  "$HOME/.fonts"
+  "/usr/local/share/fonts"
+  "/usr/share/fonts"
+  "$HOME/Library/Fonts"
+  "/Library/Fonts"
+)
+
+has_nerd_font() {
+  if command -v fc-list >/dev/null 2>&1; then
+    if fc-list | grep -qi "nerd font"; then
+      return 0
+    fi
+  fi
+  for dir in "${FONT_DIRS[@]}"; do
+    [ -d "$dir" ] || continue
+    if find "$dir" -iname "*nerd*font*" -print -quit 2>/dev/null | grep -q .; then
+      return 0
+    fi
+  done
+  return 1
+}
+
+install_nerd_font() {
+  local target_dir="$HOME/.local/share/fonts"
+  if [ "$(uname -s)" = "Darwin" ]; then
+    target_dir="$HOME/Library/Fonts"
+  fi
+  mkdir -p "$target_dir"
+
+  local zip_url="https://github.com/ryanoasis/nerd-fonts/releases/latest/download/${NERD_FONT_NAME}.zip"
+  local zip_path="$WORKDIR/${NERD_FONT_NAME}.zip"
+
+  echo "==> Downloading ${NERD_FONT_NAME} Nerd Font"
+  if ! curl -fsSL "$zip_url" -o "$zip_path"; then
+    echo "warning: failed to download the Nerd Font -- continuing without it." >&2
+    echo "You can install one manually from https://www.nerdfonts.com/ later, or run puka with --no-nerd-font." >&2
+    return
+  fi
+
+  if ! command -v unzip >/dev/null 2>&1; then
+    echo "warning: 'unzip' is required to install the font but was not found on PATH." >&2
+    echo "Install it (e.g. 'sudo apt-get install unzip') and re-run, or run puka with --no-nerd-font." >&2
+    return
+  fi
+
+  echo "==> Installing ${NERD_FONT_NAME} Nerd Font to $target_dir"
+  unzip -oq "$zip_path" -d "$target_dir"
+
+  if command -v fc-cache >/dev/null 2>&1; then
+    fc-cache -f "$target_dir" >/dev/null 2>&1 || true
+  fi
+
+  echo "Font installed. Select \"${NERD_FONT_NAME} Nerd Font\" in your terminal's font settings to see the icons."
+}
+
+if has_nerd_font; then
+  echo "==> Nerd Font detected -- puka's icons will render correctly."
+else
+  echo "==> No Nerd Font detected."
+  echo "puka's icons default to Nerd Font glyphs and render as broken boxes/tofu without one."
+  if [ -t 0 ]; then
+    read -r -p "Install ${NERD_FONT_NAME} Nerd Font now? [Y/n] " reply || reply="n"
+  else
+    reply="n"
+    echo "(non-interactive shell -- skipping; re-run interactively to be prompted, or install one manually)"
+  fi
+  case "$reply" in
+    [nN]*)
+      echo "Skipping font install. Run puka with --no-nerd-font for plain ASCII icons instead."
+      ;;
+    *)
+      install_nerd_font
+      ;;
+  esac
+fi
 
 echo "==> Cloning puka into $WORKDIR"
 git clone --depth 1 "$REPO_URL" "$WORKDIR/puka"

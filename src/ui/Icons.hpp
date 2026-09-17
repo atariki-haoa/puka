@@ -3,10 +3,10 @@
 
 namespace puka {
 
-// Nerd Font glyphs are opt-in (default OFF): there is no reliable runtime way
-// to detect whether the terminal's active font actually contains them, and a
-// missing glyph renders as a broken tofu/box character, which looks worse
-// than the plain-text fallback that's used by default.
+// Nerd Font glyphs are on by default. There is no reliable runtime way to
+// detect whether the terminal's active font actually contains them -- a
+// missing glyph renders as a broken tofu/box character -- so `--no-nerd-font`
+// is available to fall back to the plain-text glyphs.
 class Icons {
  public:
   static void SetUseNerdFont(bool enabled);

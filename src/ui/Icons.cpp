@@ -4,7 +4,7 @@
 
 namespace puka {
 
-bool Icons::use_nerd_font_ = false;
+bool Icons::use_nerd_font_ = true;
 
 void Icons::SetUseNerdFont(bool enabled) { use_nerd_font_ = enabled; }
 bool Icons::UseNerdFont() { return use_nerd_font_; }

@@ -113,6 +113,6 @@ than reaching back up through a parent pointer.
 
 ### Icons
 
-`Icons` (`src/ui/Icons.hpp`/`.cpp`) provides ASCII-fallback glyphs by default; `--nerd-font` switches to
-Nerd Font glyphs via `Icons::SetUseNerdFont()`, set once in `main.cpp` before the `Application` is
-constructed.
+`Icons` (`src/ui/Icons.hpp`/`.cpp`) provides Nerd Font glyphs by default; `--no-nerd-font` switches to
+plain ASCII-fallback glyphs via `Icons::SetUseNerdFont()`, set once in `main.cpp` before the `Application`
+is constructed.

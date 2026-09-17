@@ -8,12 +8,14 @@
 
 int main(int argc, char** argv) {
   std::filesystem::path root;
-  bool use_nerd_font = false;
+  bool use_nerd_font = true;
 
   for (int i = 1; i < argc; ++i) {
     std::string arg = argv[i];
     if (arg == "--nerd-font") {
       use_nerd_font = true;
+    } else if (arg == "--no-nerd-font") {
+      use_nerd_font = false;
     } else {
       root = arg;
     }
@@ -26,8 +28,9 @@ int main(int argc, char** argv) {
     return 1;
   }
 
-  // Off by default: renders as broken boxes/tofu unless the terminal's font
-  // is actually a Nerd Font patched font (e.g. "FiraCode Nerd Font").
+  // On by default; renders as broken boxes/tofu unless the terminal's font
+  // is actually a Nerd Font patched font (e.g. "FiraCode Nerd Font") -- pass
+  // --no-nerd-font to fall back to plain ASCII icons.
   puka::Icons::SetUseNerdFont(use_nerd_font);
 
   puka::InitGitLibrary();
