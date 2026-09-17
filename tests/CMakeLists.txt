@@ -1,0 +1,23 @@
+add_executable(test_buffer_edits test_buffer_edits.cpp)
+target_link_libraries(test_buffer_edits PRIVATE puka_editor)
+add_test(NAME test_buffer_edits COMMAND test_buffer_edits)
+
+add_executable(test_keymap_dispatch test_keymap_dispatch.cpp)
+target_link_libraries(test_keymap_dispatch PRIVATE puka_keys)
+add_test(NAME test_keymap_dispatch COMMAND test_keymap_dispatch)
+
+add_executable(test_language_registry test_language_registry.cpp)
+target_link_libraries(test_language_registry PRIVATE puka_syntax)
+add_test(NAME test_language_registry COMMAND test_language_registry)
+
+add_executable(test_highlighter_spans test_highlighter_spans.cpp)
+target_link_libraries(test_highlighter_spans PRIVATE puka_syntax)
+add_test(NAME test_highlighter_spans COMMAND test_highlighter_spans)
+
+add_executable(test_search_parsing test_search_parsing.cpp)
+target_link_libraries(test_search_parsing PRIVATE puka_search)
+add_test(NAME test_search_parsing COMMAND test_search_parsing)
+
+add_executable(test_git_status_mapping test_git_status_mapping.cpp)
+target_link_libraries(test_git_status_mapping PRIVATE puka_git)
+add_test(NAME test_git_status_mapping COMMAND test_git_status_mapping)

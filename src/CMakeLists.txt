@@ -1,0 +1,11 @@
+add_subdirectory(fs)
+add_subdirectory(git)
+add_subdirectory(syntax)
+add_subdirectory(search)
+add_subdirectory(editor)
+add_subdirectory(keys)
+add_subdirectory(ui)
+add_subdirectory(app)
+
+add_executable(puka main.cpp)
+target_link_libraries(puka PRIVATE puka_app)
