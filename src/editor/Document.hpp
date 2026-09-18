@@ -40,6 +40,12 @@ class Document {
   void DeleteBackward();
   void DeleteForward();
 
+  // Deletes the cursor's whole line, including the newline that joins it to
+  // whichever line takes its place (see the .cpp for how the last line and
+  // a single-line buffer -- neither has a "next" newline to consume --
+  // are handled instead).
+  void DeleteLine();
+
   void MoveLeft();
   void MoveRight();
   void MoveUp();

@@ -14,11 +14,13 @@ using namespace ftxui;
 
 namespace {
 
-Element FileBadge(const GitFileStatus& f) {
-  std::string badge = (f.unstaged == GitDeltaType::Untracked)
-                           ? "??"
-                           : std::string(1, BadgeChar(f.staged)) + BadgeChar(f.unstaged);
-  return text(badge) | color(BadgeColor(PrimaryDelta(f)));
+// One character, not the two-column staged+unstaged porcelain badge used
+// elsewhere -- now that a file's staged and unstaged deltas render in their
+// own separate sections (see SourceControlView.hpp's staged_/unstaged_
+// comment), each row only needs to show the delta relevant to that section.
+Element FileBadge(const GitFileStatus& f, bool staged_section) {
+  GitDeltaType type = staged_section ? f.staged : f.unstaged;
+  return text(std::string(1, BadgeChar(type))) | color(BadgeColor(type));
 }
 
 // Shift+Enter isn't a named FTXUI event -- there's no reliable byte
@@ -46,18 +48,43 @@ SourceControlView::SourceControlView(
 
 void SourceControlView::SetStatus(GitRepoStatus status) {
   status_ = std::move(status);
-  list_selected_ = status_.files.empty()
-                        ? 0
-                        : std::clamp(list_selected_, 0, static_cast<int>(status_.files.size()) - 1);
-  tree_.SetFiles(status_.files, root_);
+
+  staged_.clear();
+  unstaged_.clear();
+  for (const auto& f : status_.files) {
+    if (f.staged != GitDeltaType::None) staged_.push_back(f);
+    if (f.unstaged != GitDeltaType::None) unstaged_.push_back(f);
+  }
+
+  int total = static_cast<int>(staged_.size() + unstaged_.size());
+  list_selected_ = total == 0 ? 0 : std::clamp(list_selected_, 0, total - 1);
+
+  tree_staged_.SetFiles(staged_, root_);
+  tree_unstaged_.SetFiles(unstaged_, root_);
   RefreshTreeVisible();
 }
 
 void SourceControlView::RefreshTreeVisible() {
-  tree_visible_ = tree_.VisibleRows();
+  tree_visible_ = tree_staged_.VisibleRows();
+  tree_staged_row_count_ = tree_visible_.size();
+  auto unstaged_rows = tree_unstaged_.VisibleRows();
+  tree_visible_.insert(tree_visible_.end(), unstaged_rows.begin(), unstaged_rows.end());
+
   tree_selected_ = tree_visible_.empty()
                         ? 0
                         : std::clamp(tree_selected_, 0, static_cast<int>(tree_visible_.size()) - 1);
+}
+
+const GitFileStatus* SourceControlView::SelectedFileList() const {
+  if (list_selected_ < static_cast<int>(staged_.size())) {
+    return &staged_[static_cast<size_t>(list_selected_)];
+  }
+  size_t idx = static_cast<size_t>(list_selected_) - staged_.size();
+  return idx < unstaged_.size() ? &unstaged_[idx] : nullptr;
+}
+
+ScmTree& SourceControlView::TreeForVisibleIndex(int index) {
+  return static_cast<size_t>(index) < tree_staged_row_count_ ? tree_staged_ : tree_unstaged_;
 }
 
 Element SourceControlView::OnRender() {
@@ -70,7 +97,7 @@ Element SourceControlView::OnRender() {
   Element header = hbox(
       {text(branch_label) | bold | color(Color::Cyan), filler(), text(mode_label) | dim});
 
-  if (status_.files.empty()) {
+  if (staged_.empty() && unstaged_.empty()) {
     return vbox({header, separator(), filler(), hcenter(text("No changes") | dim), filler()});
   }
 
@@ -80,31 +107,49 @@ Element SourceControlView::OnRender() {
 
 Element SourceControlView::RenderList() {
   Elements rows;
-  for (int i = 0; i < static_cast<int>(status_.files.size()); ++i) {
-    const auto& f = status_.files[i];
-    // Two-column porcelain-style badge (staged, unstaged) so a file with
-    // both a staged change and further unstaged edits on top (e.g. "MM")
-    // is represented as one row, not split across separate sections.
-    std::error_code ec;
-    auto rel = std::filesystem::relative(f.path, root_, ec);
-    std::string path_str = ec ? f.path.string() : rel.string();
+  int visual_selected = 0;
+  int file_index = 0;
 
-    bool selected = (i == list_selected_);
-    Color name_color = selected ? Color(Color::Black) : Color(Color::Default);
-    Element row = hbox({FileBadge(f), text(" " + path_str) | color(name_color)});
-    // Not `| inverted` -- see the comment on the equivalent line in
-    // FileTreeView::OnRender: it'd turn the badge's own fg color into a
-    // colored background instead of a uniform selection highlight.
-    if (selected) row = row | bgcolor(Color::GrayLight);
-    rows.push_back(row);
-  }
-  return vbox(std::move(rows)) | focusPosition(0, list_selected_) | frame | flex;
+  // Staged Changes first, then Changes -- same order as VSCode. A section
+  // with nothing in it doesn't get a header at all (also matching VSCode),
+  // so a repo with only unstaged edits looks exactly like before this
+  // split existed.
+  auto add_section = [&](const std::vector<GitFileStatus>& files, const char* label,
+                          bool staged_section) {
+    if (files.empty()) return;
+    rows.push_back(text(std::string(label) + " (" + std::to_string(files.size()) + ")") | dim);
+    for (const auto& f : files) {
+      std::error_code ec;
+      auto rel = std::filesystem::relative(f.path, root_, ec);
+      std::string path_str = ec ? f.path.string() : rel.string();
+
+      bool selected = (file_index == list_selected_);
+      Color name_color = selected ? Color(Color::Black) : Color(Color::Default);
+      Element row =
+          hbox({FileBadge(f, staged_section), text(" " + path_str) | color(name_color)});
+      // Not `| inverted` -- see the comment on the equivalent line in
+      // FileTreeView::OnRender: it'd turn the badge's own fg color into a
+      // colored background instead of a uniform selection highlight.
+      if (selected) {
+        row = row | bgcolor(Color::GrayLight);
+        visual_selected = static_cast<int>(rows.size());
+      }
+      rows.push_back(row);
+      ++file_index;
+    }
+  };
+  add_section(staged_, "Staged Changes", true);
+  add_section(unstaged_, "Changes", false);
+
+  return vbox(std::move(rows)) | focusPosition(0, visual_selected) | frame | flex;
 }
 
 Element SourceControlView::RenderTree() {
   Elements rows;
-  for (int i = 0; i < static_cast<int>(tree_visible_.size()); ++i) {
-    const auto& row = tree_visible_[i];
+  int visual_selected = 0;
+
+  auto render_row = [&](int i, bool staged_section) {
+    const auto& row = tree_visible_[static_cast<size_t>(i)];
     std::string indent(static_cast<size_t>(row.depth) * 2, ' ');
     std::string_view glyph = row.node->is_directory
                                   ? Icons::FolderGlyph(row.node->expanded)
@@ -118,13 +163,23 @@ Element SourceControlView::RenderTree() {
                           text(" " + row.node->name) | color(name_color)});
 
     if (!row.node->is_directory) {
-      line = hbox({line, filler(), FileBadge(row.node->status), text(" ")});
+      line = hbox({line, filler(), FileBadge(row.node->status, staged_section), text(" ")});
     }
 
-    if (selected) line = line | bgcolor(Color::GrayLight);
+    if (selected) {
+      line = line | bgcolor(Color::GrayLight);
+      visual_selected = static_cast<int>(rows.size());
+    }
     rows.push_back(line);
-  }
-  return vbox(std::move(rows)) | focusPosition(0, tree_selected_) | frame | flex;
+  };
+
+  int i = 0;
+  if (tree_staged_row_count_ > 0) rows.push_back(text("Staged Changes") | dim);
+  for (; static_cast<size_t>(i) < tree_staged_row_count_; ++i) render_row(i, true);
+  if (tree_visible_.size() > tree_staged_row_count_) rows.push_back(text("Changes") | dim);
+  for (; i < static_cast<int>(tree_visible_.size()); ++i) render_row(i, false);
+
+  return vbox(std::move(rows)) | focusPosition(0, visual_selected) | frame | flex;
 }
 
 bool SourceControlView::OnEvent(Event event) {
@@ -138,30 +193,27 @@ bool SourceControlView::OnEvent(Event event) {
     mode_ = (mode_ == ScmViewMode::List) ? ScmViewMode::Tree : ScmViewMode::List;
     return true;
   }
-  if (!status_.is_repo || status_.files.empty()) return false;
+  if (!status_.is_repo || (staged_.empty() && unstaged_.empty())) return false;
 
   return mode_ == ScmViewMode::Tree ? OnEventTree(event) : OnEventList(event);
 }
 
 bool SourceControlView::OnEventList(Event event) {
+  int total = static_cast<int>(staged_.size() + unstaged_.size());
   if (event == Event::ArrowUp) {
     list_selected_ = std::max(0, list_selected_ - 1);
     return true;
   }
   if (event == Event::ArrowDown) {
-    list_selected_ = std::min(static_cast<int>(status_.files.size()) - 1, list_selected_ + 1);
+    list_selected_ = std::min(total - 1, list_selected_ + 1);
     return true;
   }
   if (event == Event::Return) {
-    if (on_open_) {
-      on_open_(status_.files[static_cast<size_t>(list_selected_)].path, ScmOpenMode::Diff);
-    }
+    if (const auto* f = SelectedFileList(); f && on_open_) on_open_(f->path, ScmOpenMode::Diff);
     return true;
   }
   if (IsOpenDirectChord(event)) {
-    if (on_open_) {
-      on_open_(status_.files[static_cast<size_t>(list_selected_)].path, ScmOpenMode::File);
-    }
+    if (const auto* f = SelectedFileList(); f && on_open_) on_open_(f->path, ScmOpenMode::File);
     return true;
   }
   return false;
@@ -182,7 +234,7 @@ bool SourceControlView::OnEventTree(Event event) {
   auto* node = tree_visible_[static_cast<size_t>(tree_selected_)].node;
   if (event == Event::Return) {
     if (node->is_directory) {
-      tree_.ToggleExpanded(*node);
+      TreeForVisibleIndex(tree_selected_).ToggleExpanded(*node);
       RefreshTreeVisible();
     } else if (on_open_) {
       on_open_(node->path, ScmOpenMode::Diff);
@@ -195,14 +247,14 @@ bool SourceControlView::OnEventTree(Event event) {
   }
   if (event == Event::ArrowRight) {
     if (node->is_directory && !node->expanded) {
-      tree_.ToggleExpanded(*node);
+      TreeForVisibleIndex(tree_selected_).ToggleExpanded(*node);
       RefreshTreeVisible();
     }
     return true;
   }
   if (event == Event::ArrowLeft) {
     if (node->is_directory && node->expanded) {
-      tree_.ToggleExpanded(*node);
+      TreeForVisibleIndex(tree_selected_).ToggleExpanded(*node);
       RefreshTreeVisible();
     }
     return true;

@@ -43,6 +43,8 @@ class SourceControlView : public ftxui::ComponentBase {
   bool OnEventList(ftxui::Event event);
   bool OnEventTree(ftxui::Event event);
   void RefreshTreeVisible();
+  const GitFileStatus* SelectedFileList() const;
+  ScmTree& TreeForVisibleIndex(int index);
 
   std::filesystem::path root_;
   std::function<void(const std::filesystem::path&, ScmOpenMode)> on_open_;
@@ -51,8 +53,20 @@ class SourceControlView : public ftxui::ComponentBase {
   ScmViewMode mode_ = ScmViewMode::List;
   int list_selected_ = 0;
 
-  ScmTree tree_;
-  std::vector<ScmTree::VisibleRow> tree_visible_;
+  // status_.files split into the two groups VSCode's Source Control panel
+  // shows as separate sections -- a file with both a staged change and
+  // further unstaged edits on top appears in both (see GitFileStatus's own
+  // doc comment: staged/unstaged are independent). Rebuilt wholesale in
+  // SetStatus() alongside status_ itself.
+  std::vector<GitFileStatus> staged_;
+  std::vector<GitFileStatus> unstaged_;
+
+  // Two independent trees (rather than one tree tagged by section) so each
+  // section keeps its own collapsed-folder state, same as VSCode.
+  ScmTree tree_staged_;
+  ScmTree tree_unstaged_;
+  std::vector<ScmTree::VisibleRow> tree_visible_;  // tree_staged_'s rows, then tree_unstaged_'s
+  size_t tree_staged_row_count_ = 0;                // boundary within tree_visible_
   int tree_selected_ = 0;
 };
 

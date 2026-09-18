@@ -46,11 +46,12 @@ std::string ShortcutsHint(const std::vector<Binding>& bindings) {
 }
 
 // Shortcuts handled directly inside a view's own OnEvent() (F5/t/Enter/
-// Shift+Enter in Source Control, Escape in the diff view) rather than
-// through CommandRegistry's global chord table, so BuildShortcutEntries()
-// above never sees them. CLAUDE.md's keybinding rule requires every new
-// shortcut -- global or local -- to show up in this popup, so this list is
-// the manually-maintained half of that contract.
+// Shift+Enter in Source Control, Escape in the diff view, Enter/arrows/Esc
+// in the editor's find bar once Ctrl+F opens it, n/Enter/Esc for Explorer's
+// new-file prompt) rather than through CommandRegistry's global chord table,
+// so BuildShortcutEntries() above never sees them. CLAUDE.md's keybinding
+// rule requires every new shortcut -- global or local -- to show up in this
+// popup, so this list is the manually-maintained half of that contract.
 // Local-only poll: GetRepoStatus never touches the network (ahead/behind is
 // computed against whatever the upstream tracking ref was left at by the
 // user's last manual fetch/pull/push), so this interval is about UI
@@ -66,6 +67,12 @@ std::vector<ShortcutEntry> ContextualShortcutEntries() {
       {"Enter", "Open file diff vs. HEAD (Source Control)"},
       {"Shift+Enter / o", "Open file directly, no diff (Source Control)"},
       {"Esc", "Close the file diff view"},
+      {"Enter / ↓", "Find: jump to next match (Editor, find bar open)"},
+      {"↑", "Find: jump to previous match (Editor, find bar open)"},
+      {"Esc", "Close the find bar (Editor)"},
+      {"n / N", "Create a new file (Explorer, focused)"},
+      {"Enter", "Confirm new file name (Explorer, prompt open)"},
+      {"Esc", "Cancel new file creation (Explorer)"},
   };
 }
 
@@ -79,6 +86,7 @@ Application::Application(std::filesystem::path workspace_root)
 int Application::Run() {
   auto editor_view = Make<EditorView>(documents_);
   editor_ = editor_view;
+  editor_view_ = editor_view;
 
   auto explorer = Make<FileTreeView>(
       workspace_root_,
@@ -86,6 +94,7 @@ int Application::Run() {
         if (documents_.OpenFile(path)) editor_view->TakeFocus();
       },
       &git_status_by_path_, &git_status_.ignored_paths);
+  file_tree_view_ = explorer;
 
   auto search_view = Make<SearchView>(workspace_root_, [this, editor_view](const SearchHit& hit) {
     if (auto* doc = documents_.OpenFile(hit.file)) {
@@ -127,10 +136,13 @@ int Application::Run() {
 
   auto with_diff = Modal(layout_, diff_view_, &show_diff_);
   Component root = CatchEvent(Modal(with_diff, shortcuts_popup, &show_shortcuts_), [this](Event event) {
-    // While the popup or the diff view is open, let it handle input
-    // directly (each closes itself on Esc, the popup also on Enter/F1)
-    // instead of letting global commands fire underneath it.
+    // While the popup, the diff view, the editor's find bar, or the
+    // Explorer's new-file prompt is open, let it handle input directly
+    // (each closes itself on Esc, the popup also on Enter/F1) instead of
+    // letting global commands -- Esc/"toggle pane focus" in particular --
+    // fire underneath it.
     if (show_shortcuts_ || show_diff_) return false;
+    if (editor_view_->FindActive() || file_tree_view_->CreatingFile()) return false;
     auto command = commands_.CommandForChord(event);
     return command.has_value() && commands_.Dispatch(*command);
   });
@@ -182,6 +194,10 @@ void Application::RegisterCommands() {
     if (auto* doc = documents_.Active()) {
       if (doc->Save()) RefreshGitStatus();
     }
+  });
+  commands_.Register("editor.action.find", [this] { editor_view_->ActivateFind(); });
+  commands_.Register("editor.action.deleteLine", [this] {
+    if (auto* doc = documents_.Active()) doc->DeleteLine();
   });
   commands_.Register("workbench.action.closeActiveEditor", [this] { documents_.CloseActive(); });
   commands_.Register("workbench.action.nextEditor", [this] { documents_.NextTab(); });

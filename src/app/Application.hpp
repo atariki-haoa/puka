@@ -13,6 +13,8 @@
 #include "git/GitService.hpp"
 #include "keys/CommandRegistry.hpp"
 #include "ui/DiffView.hpp"
+#include "ui/EditorView.hpp"
+#include "ui/FileTreeView.hpp"
 #include "ui/Layout.hpp"
 #include "ui/ShortcutsPopup.hpp"
 #include "ui/Sidebar.hpp"
@@ -52,6 +54,8 @@ class Application {
   std::shared_ptr<SourceControlView> source_control_;
 
   std::shared_ptr<Sidebar> sidebar_;
+  std::shared_ptr<EditorView> editor_view_;
+  std::shared_ptr<FileTreeView> file_tree_view_;
   ftxui::Component editor_;
   std::shared_ptr<Layout> layout_;
 

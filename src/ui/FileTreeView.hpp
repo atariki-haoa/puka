@@ -1,6 +1,7 @@
 #pragma once
 #include <filesystem>
 #include <functional>
+#include <string>
 #include <unordered_map>
 #include <vector>
 
@@ -28,8 +29,23 @@ class FileTreeView : public ftxui::ComponentBase {
   bool OnEvent(ftxui::Event event) override;
   bool Focusable() const override { return true; }
 
+  // True while the "new file" name prompt is open -- Application checks this
+  // to suppress global commands the same way it does for the diff view/
+  // shortcuts popup, so e.g. Esc cancels the prompt instead of toggling pane
+  // focus. See CreateFile()'s doc comment for where the file actually lands.
+  bool CreatingFile() const { return creating_file_; }
+
  private:
   void RefreshVisible();
+  void StartCreateFile();
+  void CreateFile();
+  ftxui::Element RenderTree();
+  FileTreeNode* FindVisibleNodeByPath(const std::filesystem::path& path);
+
+  // Declared before tree_ so the constructor can copy it before moving the
+  // same value into FileTree's constructor (member init order follows
+  // declaration order, not the initializer list).
+  std::filesystem::path root_;
 
   FileTree tree_;
   std::function<void(const std::filesystem::path&)> on_open_;
@@ -37,6 +53,10 @@ class FileTreeView : public ftxui::ComponentBase {
   const std::vector<std::filesystem::path>* ignored_paths_;
   std::vector<FileTree::VisibleRow> visible_;
   int selected_ = 0;
+
+  bool creating_file_ = false;
+  std::string new_file_name_;
+  FileTreeNode* new_file_dir_node_ = nullptr;
 };
 
 }  // namespace puka

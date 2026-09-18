@@ -32,6 +32,17 @@ class FileTree {
 
   void ToggleExpanded(FileTreeNode& node);
 
+  // The synthetic root node (the workspace directory itself) -- not a row in
+  // VisibleRows(), but needed as a fallback "create here" target when
+  // nothing in the tree is selected.
+  FileTreeNode& Root() { return *root_; }
+
+  // Re-reads `node`'s own directory listing from disk (e.g. after creating a
+  // file inside it), while preserving each existing subdirectory's expanded
+  // state and already-loaded children -- otherwise every subfolder under
+  // `node` would silently re-collapse on refresh.
+  void RefreshChildren(FileTreeNode& node);
+
  private:
   void EnsureChildrenLoaded(FileTreeNode& node);
   void CollectVisible(FileTreeNode& node, int depth, std::vector<VisibleRow>& out);

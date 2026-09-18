@@ -1,6 +1,7 @@
 #include "fs/FileTree.hpp"
 
 #include <algorithm>
+#include <unordered_map>
 
 namespace puka {
 
@@ -46,6 +47,32 @@ void FileTree::ToggleExpanded(FileTreeNode& node) {
   if (!node.is_directory) return;
   node.expanded = !node.expanded;
   if (node.expanded) EnsureChildrenLoaded(node);
+}
+
+void FileTree::RefreshChildren(FileTreeNode& node) {
+  if (!node.is_directory) return;
+
+  // Detach existing subdirectory nodes by name before rebuilding this
+  // level's listing, so newly-created nodes of the same name can inherit
+  // their expanded/children_loaded state and already-loaded subtree instead
+  // of resetting to collapsed.
+  std::unordered_map<std::string, std::unique_ptr<FileTreeNode>> old_dirs;
+  for (auto& child : node.children) {
+    if (child->is_directory) old_dirs[child->name] = std::move(child);
+  }
+
+  node.children_loaded = false;
+  node.children.clear();
+  EnsureChildrenLoaded(node);
+
+  for (auto& child : node.children) {
+    if (!child->is_directory) continue;
+    auto it = old_dirs.find(child->name);
+    if (it == old_dirs.end()) continue;
+    child->expanded = it->second->expanded;
+    child->children_loaded = it->second->children_loaded;
+    child->children = std::move(it->second->children);
+  }
 }
 
 void FileTree::CollectVisible(FileTreeNode& node, int depth, std::vector<VisibleRow>& out) {

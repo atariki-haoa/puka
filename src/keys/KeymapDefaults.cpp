@@ -23,6 +23,15 @@ std::vector<Binding> DefaultKeymap() {
       {Event::AltG, "workbench.view.scm", "Alt+G", "Focus Source Control"},
 
       {Event::CtrlS, "workbench.action.files.save", "Ctrl+S", "Save file"},
+      // Ctrl+F sends a single raw control byte (\x06), same as Ctrl+S/Ctrl+Z
+      // above -- unlike the Alt+<letter> chords, there's no terminal-specific
+      // interception risk to design around here.
+      {Event::CtrlF, "editor.action.find", "Ctrl+F", "Find in file"},
+      // Ctrl+K (\x0b) -- readline/emacs binds this at the shell's own
+      // line-editing layer, which doesn't apply once puka has the terminal
+      // in raw mode, so it reaches the app like any other Ctrl+<letter>
+      // chord here.
+      {Event::CtrlK, "editor.action.deleteLine", "Ctrl+K", "Delete line"},
       // Some terminals/IDEs (integrated terminals in particular) intercept
       // Ctrl+W themselves to close their own tab/pane -- Alt+W is a fallback
       // that reaches the app either way.

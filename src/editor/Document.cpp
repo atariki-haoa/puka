@@ -96,6 +96,40 @@ void Document::DeleteForward() {
   }
 }
 
+void Document::DeleteLine() {
+  size_t row = cursor_.row;
+  size_t line_count = buffer_.LineCount();
+
+  size_t row0, col0, row1, col1;
+  if (line_count == 1) {
+    // The only line in the buffer -- nothing to join, just clear it.
+    row0 = 0;
+    col0 = 0;
+    row1 = 0;
+    col1 = buffer_.Line(0).size();
+  } else if (row + 1 < line_count) {
+    // Consume this line plus the newline after it, so the line below slides
+    // up into its place.
+    row0 = row;
+    col0 = 0;
+    row1 = row + 1;
+    col1 = 0;
+  } else {
+    // Last line -- there's no newline after it to consume, so consume the
+    // one before it instead.
+    row0 = row - 1;
+    col0 = buffer_.Line(row - 1).size();
+    row1 = row;
+    col1 = buffer_.Line(row).size();
+  }
+
+  auto [text, edit] = buffer_.DeleteRange(row0, col0, row1, col1);
+  (void)text;
+  cursor_.row = row0;
+  cursor_.col = col0;
+  if (highlighter_) highlighter_->Edit(edit, buffer_.ToString());
+}
+
 void Document::MoveLeft() {
   if (cursor_.col > 0) {
     cursor_.col -= 1;

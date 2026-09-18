@@ -1,6 +1,7 @@
 #include "ui/FileTreeView.hpp"
 
 #include <algorithm>
+#include <fstream>
 
 #include <ftxui/component/event.hpp>
 #include <ftxui/dom/elements.hpp>
@@ -28,7 +29,8 @@ FileTreeView::FileTreeView(std::filesystem::path root,
                             std::function<void(const std::filesystem::path&)> on_open,
                             const std::unordered_map<std::filesystem::path, GitFileStatus>* git_status,
                             const std::vector<std::filesystem::path>* ignored_paths)
-    : tree_(std::move(root)),
+    : root_(root),
+      tree_(std::move(root)),
       on_open_(std::move(on_open)),
       git_status_(git_status),
       ignored_paths_(ignored_paths) {
@@ -41,6 +43,14 @@ void FileTreeView::RefreshVisible() {
 }
 
 Element FileTreeView::OnRender() {
+  Element body = RenderTree();
+  if (!creating_file_) return body;
+
+  Element prompt = hbox({text(" New file: ") | bold, text(new_file_name_) | underlined, text("_")});
+  return vbox({prompt, separator(), body | flex});
+}
+
+Element FileTreeView::RenderTree() {
   if (visible_.empty()) {
     return vbox({filler(), hcenter(text("(empty folder)") | dim), filler()});
   }
@@ -85,6 +95,36 @@ Element FileTreeView::OnRender() {
 }
 
 bool FileTreeView::OnEvent(Event event) {
+  if (creating_file_) {
+    if (event == Event::Escape) {
+      creating_file_ = false;
+      return true;
+    }
+    if (event == Event::Return) {
+      if (!new_file_name_.empty()) CreateFile();
+      creating_file_ = false;
+      return true;
+    }
+    if (event == Event::Backspace) {
+      if (!new_file_name_.empty()) new_file_name_.pop_back();
+      return true;
+    }
+    if (event.is_character()) {
+      new_file_name_ += event.character();
+      return true;
+    }
+    return true;  // swallow everything else while the prompt is open
+  }
+
+  // Local to this view (like the SCM view's own F5/t), not a global
+  // CommandRegistry binding -- only meaningful while Explorer is focused.
+  // Works even on an empty folder (StartCreateFile falls back to the
+  // workspace root when nothing is selected).
+  if (event == Event::Character("n") || event == Event::Character("N")) {
+    StartCreateFile();
+    return true;
+  }
+
   if (visible_.empty()) return false;
 
   if (event == Event::ArrowUp) {
@@ -121,6 +161,57 @@ bool FileTreeView::OnEvent(Event event) {
     return true;
   }
   return false;
+}
+
+FileTreeNode* FileTreeView::FindVisibleNodeByPath(const std::filesystem::path& path) {
+  for (const auto& row : visible_) {
+    if (row.node->path == path) return row.node;
+  }
+  return nullptr;
+}
+
+void FileTreeView::StartCreateFile() {
+  // Default target: the workspace root, covering both "nothing selected"
+  // and "tree is empty" -- Root() is never itself a row in visible_.
+  new_file_dir_node_ = &tree_.Root();
+  if (!visible_.empty()) {
+    auto* node = visible_[static_cast<size_t>(selected_)].node;
+    if (node->is_directory) {
+      new_file_dir_node_ = node;
+    } else if (auto* parent = FindVisibleNodeByPath(node->path.parent_path())) {
+      // A visible file's parent directory is always itself visible and
+      // expanded -- that's the only way the file could be showing at all.
+      new_file_dir_node_ = parent;
+    }
+  }
+  creating_file_ = true;
+  new_file_name_.clear();
+}
+
+// Touch-creates an empty file in new_file_dir_node_'s directory, refreshes
+// just that directory's listing (expanding it if needed so the new file is
+// visible), then opens it like any other Explorer click. Silently no-ops on
+// a name that already exists or that Buffer can't be written to (e.g. a
+// name containing '/' whose parent doesn't exist) -- same "fail quiet, not
+// crash" posture as the rest of this read-mostly view.
+void FileTreeView::CreateFile() {
+  std::filesystem::path new_path = new_file_dir_node_->path / new_file_name_;
+  std::error_code ec;
+  if (!std::filesystem::exists(new_path, ec)) {
+    std::ofstream(new_path, std::ios::binary).close();
+  }
+
+  new_file_dir_node_->expanded = true;
+  tree_.RefreshChildren(*new_file_dir_node_);
+  RefreshVisible();
+
+  for (int i = 0; i < static_cast<int>(visible_.size()); ++i) {
+    if (visible_[i].node->path == new_path) {
+      selected_ = i;
+      break;
+    }
+  }
+  if (on_open_) on_open_(new_path);
 }
 
 }  // namespace puka
