@@ -60,15 +60,19 @@ into the results list, `ArrowUp` at the top result moves back.
 ## Install
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/atariki-haoa/puka/main/install.sh | bash
+git clone https://github.com/atariki-haoa/puka.git
+cd puka
+./install.sh
 ```
 
-Clones the repo into a temp dir, builds a release binary, and installs it to
-`~/.local/bin/puka` (set `PREFIX=/usr/local` to install system-wide instead).
-Add `~/.local/bin` to your `PATH` if it isn't already. There are no prebuilt
-binaries yet, so this still does a full source build under the hood -- see
-Build below for what that entails. Since puka's icons default to Nerd Font
-glyphs, the installer also checks whether a
+Builds a release binary in `./build` (reusing it, and its already-fetched
+FTXUI/tree-sitter/libgit2 sources, if you'd already built puka there) and
+installs it to `~/.local/bin/puka` (set `PREFIX=/usr/local` to install
+system-wide instead, or `BUILD_DIR=...` to build somewhere other than
+`./build`). Add `~/.local/bin` to your `PATH` if it isn't already. There are
+no prebuilt binaries yet, so this still does a full source build under the
+hood -- see Build below for what that entails. Since puka's icons default to
+Nerd Font glyphs, the installer also checks whether a
 [Nerd Font](https://www.nerdfonts.com/) is already installed and, if not,
 offers to download and install one (JetBrainsMono Nerd Font) before
 building -- remember to select it in your terminal profile's font settings

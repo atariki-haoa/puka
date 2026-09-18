@@ -1,19 +1,35 @@
 #!/usr/bin/env bash
 # Builds puka from source and installs it -- no prebuilt binaries exist yet,
-# so this clones the repo, configures/builds with CMake (which itself fetches
-# and statically links FTXUI, tree-sitter, and libgit2), and runs
-# `cmake --install`.
+# so this configures/builds with CMake (which itself fetches and statically
+# links FTXUI, tree-sitter, and libgit2) and runs `cmake --install`.
+#
+# Run from inside an already-cloned checkout of the repo:
+#   git clone https://github.com/atariki-haoa/puka.git
+#   cd puka
+#   ./install.sh
 #
 # Usage:
-#   curl -fsSL https://raw.githubusercontent.com/atariki-haoa/puka/main/install.sh | bash
-#   PREFIX=/usr/local ./install.sh   # install system-wide instead of ~/.local
+#   ./install.sh                 # installs to ~/.local
+#   PREFIX=/usr/local ./install.sh   # install system-wide instead
+#   BUILD_DIR=build-release ./install.sh   # build in a dir other than ./build
 set -euo pipefail
 
-REPO_URL="https://github.com/atariki-haoa/puka.git"
 PREFIX="${PREFIX:-$HOME/.local}"
 
-WORKDIR="$(mktemp -d)"
-trap 'rm -rf "$WORKDIR"' EXIT
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_DIR="$SCRIPT_DIR"
+BUILD_DIR="${BUILD_DIR:-$REPO_DIR/build}"
+
+if [ ! -f "$REPO_DIR/CMakeLists.txt" ] || [ ! -d "$REPO_DIR/src" ]; then
+  echo "error: install.sh must be run from inside a cloned puka checkout." >&2
+  echo "  git clone https://github.com/atariki-haoa/puka.git && cd puka && ./install.sh" >&2
+  exit 1
+fi
+
+# Only used for the optional Nerd Font zip download below -- not for cloning
+# the repo, which is assumed to already be checked out.
+TMP_DIR="$(mktemp -d)"
+trap 'rm -rf "$TMP_DIR"' EXIT
 
 if ! command -v cmake >/dev/null 2>&1; then
   echo "error: cmake is required but was not found on PATH." >&2
@@ -21,7 +37,7 @@ if ! command -v cmake >/dev/null 2>&1; then
   exit 1
 fi
 if ! command -v git >/dev/null 2>&1; then
-  echo "error: git is required but was not found on PATH." >&2
+  echo "error: git is required (CMake's FetchContent uses it to fetch FTXUI/tree-sitter/libgit2)." >&2
   exit 1
 fi
 
@@ -60,7 +76,7 @@ install_nerd_font() {
   mkdir -p "$target_dir"
 
   local zip_url="https://github.com/ryanoasis/nerd-fonts/releases/latest/download/${NERD_FONT_NAME}.zip"
-  local zip_path="$WORKDIR/${NERD_FONT_NAME}.zip"
+  local zip_path="$TMP_DIR/${NERD_FONT_NAME}.zip"
 
   echo "==> Downloading ${NERD_FONT_NAME} Nerd Font"
   if ! curl -fsSL "$zip_url" -o "$zip_path"; then
@@ -106,21 +122,18 @@ else
   esac
 fi
 
-echo "==> Cloning puka into $WORKDIR"
-git clone --depth 1 "$REPO_URL" "$WORKDIR/puka"
-
-echo "==> Configuring (fetches and builds FTXUI, tree-sitter, and libgit2 -- a few minutes on first run)"
-cmake -S "$WORKDIR/puka" -B "$WORKDIR/puka/build" \
+echo "==> Configuring in $BUILD_DIR (fetches and builds FTXUI, tree-sitter, and libgit2 on first run -- a few minutes; reused on later runs)"
+cmake -S "$REPO_DIR" -B "$BUILD_DIR" \
   -DCMAKE_BUILD_TYPE=Release \
   -DCMAKE_INSTALL_PREFIX="$PREFIX" \
   -DPUKA_BUILD_TESTS=OFF
 
 echo "==> Building"
 NPROC="$(command -v nproc >/dev/null 2>&1 && nproc || sysctl -n hw.ncpu)"
-cmake --build "$WORKDIR/puka/build" -j"$NPROC"
+cmake --build "$BUILD_DIR" -j"$NPROC"
 
 echo "==> Installing to $PREFIX/bin"
-cmake --install "$WORKDIR/puka/build"
+cmake --install "$BUILD_DIR"
 
 echo
 echo "puka installed: $PREFIX/bin/puka"
