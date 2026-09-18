@@ -1,4 +1,4 @@
-chatcmake_minimum_required(VERSION 3.21)
+cmake_minimum_required(VERSION 3.21)
 project(puka VERSION 0.3.1 LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 20)

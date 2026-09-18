@@ -104,7 +104,11 @@ Element SourceControlView::RenderTree() {
     std::string_view glyph = row.node->is_directory
                                   ? Icons::FolderGlyph(row.node->expanded)
                                   : Icons::FileGlyph(row.node->path.extension().string());
-    Element line = text(indent + std::string(glyph) + " " + row.node->name);
+    Color glyph_color = row.node->is_directory
+                             ? Icons::FolderColor()
+                             : Icons::FileColor(row.node->path.extension().string());
+    Element line = hbox({text(indent + std::string(glyph)) | color(glyph_color),
+                          text(" " + row.node->name)});
 
     if (!row.node->is_directory) {
       line = hbox({line, filler(), FileBadge(row.node->status), text(" ")});

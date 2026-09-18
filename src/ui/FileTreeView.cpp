@@ -35,8 +35,11 @@ Element FileTreeView::OnRender() {
     std::string_view glyph = row.node->is_directory
                                   ? Icons::FolderGlyph(row.node->expanded)
                                   : Icons::FileGlyph(row.node->path.extension().string());
-    std::string label = indent + std::string(glyph) + " " + row.node->name;
-    Element line = text(label);
+    Color glyph_color = row.node->is_directory
+                             ? Icons::FolderColor()
+                             : Icons::FileColor(row.node->path.extension().string());
+    Element line = hbox({text(indent + std::string(glyph)) | color(glyph_color),
+                          text(" " + row.node->name)});
 
     if (git_status_) {
       auto it = git_status_->find(row.node->path);
