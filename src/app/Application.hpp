@@ -9,6 +9,7 @@
 #include "git/GitService.hpp"
 #include "keys/CommandRegistry.hpp"
 #include "ui/Layout.hpp"
+#include "ui/ShortcutsPopup.hpp"
 #include "ui/Sidebar.hpp"
 #include "ui/SourceControlView.hpp"
 
@@ -35,6 +36,8 @@ class Application {
   std::shared_ptr<Sidebar> sidebar_;
   ftxui::Component editor_;
   std::shared_ptr<Layout> layout_;
+
+  bool show_shortcuts_ = false;
 };
 
 }  // namespace puka

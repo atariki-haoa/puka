@@ -53,4 +53,10 @@ bool Sidebar::OnEvent(Event event) {
   return ChildAt(static_cast<size_t>(active_))->OnEvent(event);
 }
 
+void Sidebar::CycleView(int direction) {
+  constexpr int kViewCount = 3;
+  int next = (static_cast<int>(active_) + direction + kViewCount) % kViewCount;
+  active_ = static_cast<SidebarView>(next);
+}
+
 }  // namespace puka

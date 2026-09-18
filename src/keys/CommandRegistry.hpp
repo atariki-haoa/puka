@@ -26,6 +26,8 @@ class CommandRegistry {
 
   std::optional<std::string> CommandForChord(const ftxui::Event& event) const;
 
+  const std::vector<Binding>& Bindings() const { return bindings_; }
+
  private:
   std::vector<Binding> bindings_;
   std::unordered_map<std::string, std::function<void()>> handlers_;

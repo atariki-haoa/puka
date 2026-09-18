@@ -24,7 +24,10 @@ single-letter badge (unstaged wins when a file has both). Refreshes on
 startup, on every `Alt+G`, after every save, and on `F5` while Source Control
 is focused. Silently shows "Not a git repository" outside a git workspace.
 Badges can get squeezed out by a long filename in a narrow sidebar -- resize
-the terminal wider if one seems to be missing.
+the terminal wider if one seems to be missing. The repository name and
+current branch are also shown on the left of the bottom status bar at all
+times (blank outside a git workspace), so you don't need to switch to
+Source Control just to see which branch you're on.
 
 **Syntax highlighting** (VSCode Dark+-approximating colors) works for C, C++,
 Python, JavaScript, TypeScript, TSX, JSON, and Bash, detected by file
@@ -109,12 +112,14 @@ cd build && ctest --output-on-failure
 | Toggle sidebar | `Ctrl+B` |
 | Switch focus between sidebar and editor | `Escape` |
 | Explorer (files) / Search / Source Control | `Alt+B` / `Alt+F` / `Alt+G` |
+| Next / previous sidebar view | `Alt+Right` / `Alt+Left` |
 | Save | `Ctrl+S` |
 | Close tab | `Ctrl+W` or `Alt+W` |
 | Next / previous tab | `Ctrl+Right` / `Ctrl+Left` |
 | Undo / Redo | `Ctrl+Z` / `Ctrl+Y` |
 | Move / select | Arrows, Home, End, PageUp, PageDown |
 | Refresh git status (while Source Control is focused) | `F5` |
+| Show keyboard shortcuts | `F1` |
 
 A few of these diverge from VSCode's literal defaults on purpose: terminals
 collapse `Ctrl+Shift+<letter>` to the same byte sequence as `Ctrl+<letter>`,
@@ -126,6 +131,10 @@ key, so it won't reach puka under default tmux). If a chord doesn't seem to
 reach puka at all, it's very likely your terminal (or an IDE's integrated
 terminal) swallowing it before puka ever sees it -- `Escape` is the one
 binding that's essentially never intercepted, which is why it's the
-recommended way to move focus back to the sidebar. New keybindings are added
+recommended way to move focus back to the sidebar. `Alt+Right`/`Alt+Left` are
+raw xterm escape sequences rather than an FTXUI-named event (there isn't
+one), so they're the least portable bindings here -- if they don't reach
+puka in your terminal, `Alt+B`/`Alt+F`/`Alt+G` reach the same views
+directly. New keybindings are added
 table-by-table in `src/keys/KeymapDefaults.cpp` as features land, matching
 VSCode's actual chord whenever the terminal can deliver it.

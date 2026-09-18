@@ -60,6 +60,23 @@ void TestAltBFocusesExplorerNotToggleSidebar() {
         "Alt+B resolves to focus Explorer/files, not toggle sidebar");
 }
 
+void TestF1ShowsShortcutsHelp() {
+  CommandRegistry registry(DefaultKeymap());
+  auto f1 = registry.CommandForChord(Event::F1);
+  Check(f1.has_value() && *f1 == "workbench.action.toggleShortcutsHelp",
+        "F1 resolves to toggling the shortcuts popup");
+}
+
+void TestAltArrowsCycleSidebarView() {
+  CommandRegistry registry(DefaultKeymap());
+  auto next = registry.CommandForChord(Event::Special("\x1B[1;3C"));
+  auto prev = registry.CommandForChord(Event::Special("\x1B[1;3D"));
+  Check(next.has_value() && *next == "workbench.action.nextSidebarView",
+        "Alt+Right resolves to cycling to the next sidebar view");
+  Check(prev.has_value() && *prev == "workbench.action.previousSidebarView",
+        "Alt+Left resolves to cycling to the previous sidebar view");
+}
+
 }  // namespace
 
 int main() {
@@ -68,6 +85,8 @@ int main() {
   TestDispatchUnregisteredCommandIsSafeNoop();
   TestCommandForChordFindsSecondaryBinding();
   TestAltBFocusesExplorerNotToggleSidebar();
+  TestF1ShowsShortcutsHelp();
+  TestAltArrowsCycleSidebarView();
 
   if (g_failures == 0) {
     std::cout << "test_keymap_dispatch: all tests passed\n";

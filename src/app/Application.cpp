@@ -14,6 +14,37 @@
 namespace puka {
 using namespace ftxui;
 
+namespace {
+
+// Translates the CommandRegistry's chord table into the popup's display
+// list, merging fallback chords for the same command onto one row (e.g.
+// Ctrl+W and Alt+W both close the active tab) so the popup doesn't show the
+// same action twice.
+std::vector<ShortcutEntry> BuildShortcutEntries(const std::vector<Binding>& bindings) {
+  std::vector<ShortcutEntry> entries;
+  std::unordered_map<std::string, size_t> index_by_command;
+  for (const auto& binding : bindings) {
+    auto [it, inserted] = index_by_command.emplace(binding.command, entries.size());
+    if (inserted) {
+      entries.push_back({binding.label, binding.description});
+    } else {
+      entries[it->second].label += " / " + binding.label;
+    }
+  }
+  return entries;
+}
+
+std::string ShortcutsHint(const std::vector<Binding>& bindings) {
+  for (const auto& binding : bindings) {
+    if (binding.command == "workbench.action.toggleShortcutsHelp") {
+      return binding.label + " " + binding.description;
+    }
+  }
+  return "";
+}
+
+}  // namespace
+
 Application::Application(std::filesystem::path workspace_root)
     : workspace_root_(std::move(workspace_root)),
       screen_(ScreenInteractive::Fullscreen()),
@@ -49,14 +80,21 @@ int Application::Run() {
   source_control_ = source_control;
 
   sidebar_ = Make<Sidebar>(explorer, search_view, source_control);
-  RefreshGitStatus();  // populate before first paint, not just on first Alt+G
 
   int sidebar_width = std::max(20, Terminal::Size().dimx / 5);
-  layout_ = Make<Layout>(sidebar_, editor_, &sidebar_width);
+  layout_ = Make<Layout>(sidebar_, editor_, &sidebar_width, ShortcutsHint(commands_.Bindings()));
+  RefreshGitStatus();  // populate before first paint, not just on first Alt+G
+
+  auto shortcuts_popup =
+      Make<ShortcutsPopup>(BuildShortcutEntries(commands_.Bindings()), &show_shortcuts_);
 
   RegisterCommands();
 
-  Component root = CatchEvent(layout_, [this](Event event) {
+  Component root = CatchEvent(Modal(layout_, shortcuts_popup, &show_shortcuts_), [this](Event event) {
+    // While the popup is open, let it handle input directly (it closes
+    // itself on Esc/Enter/F1) instead of letting global commands fire
+    // underneath it.
+    if (show_shortcuts_) return false;
     auto command = commands_.CommandForChord(event);
     return command.has_value() && commands_.Dispatch(*command);
   });
@@ -92,6 +130,16 @@ void Application::RegisterCommands() {
     sidebar_->SetActiveView(SidebarView::SourceControl);
     sidebar_->TakeFocus();
   });
+  commands_.Register("workbench.action.nextSidebarView", [this] {
+    sidebar_->CycleView(1);
+    if (sidebar_->ActiveView() == SidebarView::SourceControl) RefreshGitStatus();
+    sidebar_->TakeFocus();
+  });
+  commands_.Register("workbench.action.previousSidebarView", [this] {
+    sidebar_->CycleView(-1);
+    if (sidebar_->ActiveView() == SidebarView::SourceControl) RefreshGitStatus();
+    sidebar_->TakeFocus();
+  });
   commands_.Register("workbench.action.files.save", [this] {
     if (auto* doc = documents_.Active()) {
       if (doc->Save()) RefreshGitStatus();
@@ -106,6 +154,8 @@ void Application::RegisterCommands() {
   commands_.Register("redo", [this] {
     if (auto* doc = documents_.Active()) doc->Redo();
   });
+  commands_.Register("workbench.action.toggleShortcutsHelp",
+                      [this] { show_shortcuts_ = !show_shortcuts_; });
 }
 
 void Application::RefreshGitStatus() {
@@ -113,6 +163,7 @@ void Application::RefreshGitStatus() {
   git_status_by_path_.clear();
   for (const auto& f : git_status_.files) git_status_by_path_[f.path] = f;
   source_control_->SetStatus(git_status_);
+  layout_->SetGitStatus(git_status_);
 }
 
 }  // namespace puka

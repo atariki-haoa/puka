@@ -33,6 +33,8 @@ struct GitRepoStatus {
                           // for any non-git directory.
   std::string branch;     // empty if !is_repo
   bool detached = false;  // true => `branch` holds an abbreviated commit hash
+  std::filesystem::path repo_root;  // absolute working directory; empty if
+                                     // !is_repo or the repo is bare
   std::vector<GitFileStatus> files;
 };
 

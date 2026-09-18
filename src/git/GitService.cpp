@@ -69,6 +69,10 @@ GitRepoStatus GetRepoStatus(const std::filesystem::path& root) {
     return result;  // is_repo stays false -- not a git repo, silently
   }
 
+  if (const char* workdir_cstr = git_repository_workdir(repo)) {
+    result.repo_root = workdir_cstr;
+  }
+
   git_reference* head_ref = nullptr;
   if (git_reference_lookup(&head_ref, repo, "HEAD") == 0) {
     if (const char* symbolic = git_reference_symbolic_target(head_ref)) {
@@ -83,9 +87,7 @@ GitRepoStatus GetRepoStatus(const std::filesystem::path& root) {
     git_reference_free(head_ref);
   }
 
-  if (const char* workdir_cstr = git_repository_workdir(repo)) {
-    std::string workdir = workdir_cstr;
-
+  if (!result.repo_root.empty()) {
     // Zero-init (not the GIT_STATUS_OPTIONS_INIT macro, which only sets
     // `version` and triggers -Wmissing-field-initializers under -Wextra)
     // then set version manually, per git_status_options_init's own contract.
@@ -108,7 +110,7 @@ GitRepoStatus GetRepoStatus(const std::filesystem::path& root) {
         const char* rel = PathOf(entry);
         if (!rel) continue;
         GitFileStatus file;
-        file.path = std::filesystem::path(workdir) / rel;
+        file.path = result.repo_root / rel;
         file.staged = MapStagedFlags(static_cast<unsigned int>(entry->status));
         file.unstaged = MapUnstagedFlags(static_cast<unsigned int>(entry->status));
         file.conflicted = (entry->status & GIT_STATUS_CONFLICTED) != 0;

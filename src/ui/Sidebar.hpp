@@ -18,6 +18,9 @@ class Sidebar : public ftxui::ComponentBase {
   void SetActiveView(SidebarView view) { active_ = view; }
   SidebarView ActiveView() const { return active_; }
 
+  // Moves to the next (+1) or previous (-1) view, wrapping around.
+  void CycleView(int direction);
+
  private:
   SidebarView active_ = SidebarView::Explorer;
 };

@@ -66,12 +66,19 @@ bool FileTreeView::OnEvent(Event event) {
   }
 
   auto* node = visible_[static_cast<size_t>(selected_)].node;
-  if (event == Event::Return || event == Event::ArrowRight) {
+  if (event == Event::Return) {
     if (node->is_directory) {
       tree_.ToggleExpanded(*node);
       RefreshVisible();
     } else if (on_open_) {
       on_open_(node->path);
+    }
+    return true;
+  }
+  if (event == Event::ArrowRight) {
+    if (node->is_directory && !node->expanded) {
+      tree_.ToggleExpanded(*node);
+      RefreshVisible();
     }
     return true;
   }
