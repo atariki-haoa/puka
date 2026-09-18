@@ -48,7 +48,9 @@ puka_git     (GitService)                       — libgit2 (PRIVATE — no <git
 puka_keys    (CommandRegistry, KeymapDefaults)  — ftxui
 puka_ui      (Icons, FileTreeView, EditorView,  — puka_editor, puka_fs, puka_syntax, puka_search, puka_git
               SearchView, SourceControlView,
-              GitStatusBadge, Sidebar, Layout)
+              ScmTree, DiffView, GitStatusBadge,
+              Sidebar, Layout, StatusBar,
+              ShortcutsPopup)
 puka_app     (Application)                      — puka_ui, puka_editor, puka_keys, puka_fs, puka_search, puka_git
 ```
 
@@ -67,6 +69,14 @@ chord→command bindings, with comments explaining *why* each chord was chosen (
 that file and the README's Keybindings section before changing any binding). Adding a keybinding is a table
 edit in `KeymapDefaults.cpp` plus a `Register()` call in `Application.cpp`, not a new `if (event == ...)`
 branch.
+
+Not every shortcut goes through this table — some are local to one view (e.g. Source Control's `F5`/`t`/
+`Enter`/`Shift+Enter`, the diff view's `Esc`), handled directly inside that view's own `OnEvent()` because
+they only make sense while it's focused. **Hard rule: every shortcut, global or local, must be discoverable
+in the `F1` shortcuts popup — no exceptions.** A global `KeymapDefaults.cpp` binding gets this for free
+(`Application::Run()` derives the popup from `commands_.Bindings()`); a local, view-scoped shortcut does
+not, and must be added by hand to `ContextualShortcutEntries()` in `Application.cpp`. Adding or changing
+either kind of shortcut without also updating the popup is an incomplete change.
 
 ### Editor core
 
@@ -101,6 +111,10 @@ the untracked-directory walk across calls regardless of a kept-open handle, so t
 holding one, only lifetime risk). Staged/unstaged deltas are independent per file (a file can be both). The
 pure mapping functions (`MapStagedFlags`, `MapUnstagedFlags`, `BranchShorthand`) are separated out
 specifically to be unit-testable without a live repository — see `tests/test_git_status_mapping.cpp`.
+`GetFileDiff()` diffs one file's on-disk content against its blob at HEAD via libgit2's
+`git_patch_from_blob_and_buffer` (no hand-rolled diff algorithm) — a missing HEAD blob (untracked file) or
+missing on-disk file (staged deletion) is simply passed as an empty buffer on that side, so both edge cases
+fall out of the same code path instead of needing special-casing.
 
 ### UI composition
 

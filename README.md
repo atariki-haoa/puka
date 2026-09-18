@@ -24,13 +24,21 @@ single-letter badge (unstaged wins when a file has both). Refreshes on
 startup, on every `Alt+G`, after every save, and on `F5` while Source Control
 is focused. Silently shows "Not a git repository" outside a git workspace.
 Badges can get squeezed out by a long filename in a narrow sidebar -- resize
-the terminal wider if one seems to be missing. The repository name and
-current branch are also shown on the left of the bottom status bar at all
-times (blank outside a git workspace), so you don't need to switch to
-Source Control just to see which branch you're on. Changed files default to
-a flat List (full path per row); press `t` while Source Control is focused
-to switch to a Tree grouped by folder (`Enter`/`Right`/`Left` expand and
-collapse a folder there) -- a folder's collapsed state survives refreshes.
+the terminal wider if one seems to be missing. Changed files default to a
+flat List (full path per row); press `t` while Source Control is focused to
+switch to a Tree grouped by folder (`Right`/`Left` or `Enter` on a folder
+expand/collapse it there) -- a folder's collapsed state survives refreshes.
+`Enter` on a *file* opens a full-pane, read-only diff against `HEAD`
+(original left, working copy right, changed lines colored; `Esc` closes it);
+`Shift+Enter` -- or `o`, since Shift+Enter isn't reliably distinguishable
+from plain Enter in every terminal -- opens the file directly instead,
+skipping the diff.
+
+The bottom status bar always shows the repository name and current branch on
+the left (blank outside a git workspace), plus a compact per-type change
+count next to it when there are changes (e.g. `+3 ~2 ?1` for 3 added, 2
+modified, 1 untracked) -- so you don't need to switch to Source Control just
+to see whether you're clean or what's changed.
 
 **Syntax highlighting** (VSCode Dark+-approximating colors) works for C, C++,
 Python, JavaScript, TypeScript, TSX, JSON, and Bash, detected by file
@@ -145,6 +153,10 @@ the Actions tab and pick `major`/`minor`/`patch` instead of `auto`.
 | Undo / Redo | `Ctrl+Z` / `Ctrl+Y` |
 | Move / select | Arrows, Home, End, PageUp, PageDown |
 | Refresh git status (while Source Control is focused) | `F5` |
+| Toggle Source Control List/Tree view (while focused) | `t` |
+| Open file diff vs. HEAD (Source Control) | `Enter` |
+| Open file directly, no diff (Source Control) | `Shift+Enter` or `o` |
+| Close the file diff view | `Escape` |
 | Show keyboard shortcuts | `F1` |
 
 A few of these diverge from VSCode's literal defaults on purpose: terminals
@@ -161,6 +173,12 @@ recommended way to move focus back to the sidebar. `Alt+Right`/`Alt+Left` are
 raw xterm escape sequences rather than an FTXUI-named event (there isn't
 one), so they're the least portable bindings here -- if they don't reach
 puka in your terminal, `Alt+B`/`Alt+F`/`Alt+G` reach the same views
-directly. New keybindings are added
-table-by-table in `src/keys/KeymapDefaults.cpp` as features land, matching
-VSCode's actual chord whenever the terminal can deliver it.
+directly. `Shift+Enter` in Source Control is in the same boat -- most
+terminals send the exact same bytes for `Enter` and `Shift+Enter` by
+default, so `o` is a guaranteed-reliable fallback bound to the same "open
+directly" action. New keybindings are added
+table-by-table in `src/keys/KeymapDefaults.cpp` as features land (or, for a
+shortcut local to one view rather than global, directly in that view's
+`OnEvent()` -- either way it must also be added to the `F1` shortcuts
+popup, see CLAUDE.md), matching VSCode's actual chord whenever the terminal
+can deliver it.

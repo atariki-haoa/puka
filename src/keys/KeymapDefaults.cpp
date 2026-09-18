@@ -64,7 +64,7 @@ std::vector<Binding> DefaultKeymap() {
       // F1 is the conventional "help" key and, unlike punctuation like '?',
       // is never a character a user would type into search/editor text, so
       // it's safe to bind globally without shadowing normal input.
-      {Event::F1, "workbench.action.toggleShortcutsHelp", "F1", "Show keyboard shortcuts"},
+      {Event::F1, "workbench.action.toggleShortcutsHelp", "F1", "to info"},
   };
 }
 

@@ -32,6 +32,7 @@ class ShortcutsPopup : public ftxui::ComponentBase {
  private:
   std::vector<ShortcutEntry> shortcuts_;
   bool* show_;
+  int selected_ = 0;
 };
 
 }  // namespace puka

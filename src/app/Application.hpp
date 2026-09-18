@@ -8,6 +8,7 @@
 #include "editor/DocumentManager.hpp"
 #include "git/GitService.hpp"
 #include "keys/CommandRegistry.hpp"
+#include "ui/DiffView.hpp"
 #include "ui/Layout.hpp"
 #include "ui/ShortcutsPopup.hpp"
 #include "ui/Sidebar.hpp"
@@ -23,6 +24,7 @@ class Application {
  private:
   void RegisterCommands();
   void RefreshGitStatus();
+  void OpenDiff(const std::filesystem::path& path);
 
   std::filesystem::path workspace_root_;
   ftxui::ScreenInteractive screen_;
@@ -36,6 +38,9 @@ class Application {
   std::shared_ptr<Sidebar> sidebar_;
   ftxui::Component editor_;
   std::shared_ptr<Layout> layout_;
+
+  std::shared_ptr<DiffView> diff_view_;
+  bool show_diff_ = false;
 
   bool show_shortcuts_ = false;
 };

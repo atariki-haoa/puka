@@ -21,11 +21,25 @@ Element FileBadge(const GitFileStatus& f) {
   return text(badge) | color(BadgeColor(PrimaryDelta(f)));
 }
 
+// Shift+Enter isn't a named FTXUI event -- there's no reliable byte
+// sequence for it in most terminals without opting into
+// modifyOtherKeys/CSI-u (unlike the Alt+<letter> chords elsewhere in this
+// app, plain Enter and Shift+Enter are often indistinguishable bytes by
+// default). Best-effort support for the two common raw encodings, plus a
+// guaranteed-reliable `o` fallback bound to the same action.
+bool IsOpenDirectChord(const Event& event) {
+  static const Event kShiftReturnLegacy = Event::Special("\x1b[27;2;13~");
+  static const Event kShiftReturnCsiU = Event::Special("\x1b[13;2u");
+  return event == kShiftReturnLegacy || event == kShiftReturnCsiU ||
+         event == Event::Character("o") || event == Event::Character("O");
+}
+
 }  // namespace
 
-SourceControlView::SourceControlView(std::filesystem::path root,
-                                      std::function<void(const std::filesystem::path&)> on_open,
-                                      std::function<void()> on_refresh_requested)
+SourceControlView::SourceControlView(
+    std::filesystem::path root,
+    std::function<void(const std::filesystem::path&, ScmOpenMode)> on_open,
+    std::function<void()> on_refresh_requested)
     : root_(std::move(root)),
       on_open_(std::move(on_open)),
       on_refresh_requested_(std::move(on_refresh_requested)) {}
@@ -128,7 +142,15 @@ bool SourceControlView::OnEventList(Event event) {
     return true;
   }
   if (event == Event::Return) {
-    if (on_open_) on_open_(status_.files[static_cast<size_t>(list_selected_)].path);
+    if (on_open_) {
+      on_open_(status_.files[static_cast<size_t>(list_selected_)].path, ScmOpenMode::Diff);
+    }
+    return true;
+  }
+  if (IsOpenDirectChord(event)) {
+    if (on_open_) {
+      on_open_(status_.files[static_cast<size_t>(list_selected_)].path, ScmOpenMode::File);
+    }
     return true;
   }
   return false;
@@ -152,8 +174,12 @@ bool SourceControlView::OnEventTree(Event event) {
       tree_.ToggleExpanded(*node);
       RefreshTreeVisible();
     } else if (on_open_) {
-      on_open_(node->path);
+      on_open_(node->path, ScmOpenMode::Diff);
     }
+    return true;
+  }
+  if (IsOpenDirectChord(event)) {
+    if (!node->is_directory && on_open_) on_open_(node->path, ScmOpenMode::File);
     return true;
   }
   if (event == Event::ArrowRight) {

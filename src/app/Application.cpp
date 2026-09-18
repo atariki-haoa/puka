@@ -1,6 +1,7 @@
 #include "app/Application.hpp"
 
 #include <algorithm>
+#include <system_error>
 
 #include <ftxui/component/component.hpp>
 #include <ftxui/screen/terminal.hpp>
@@ -43,6 +44,22 @@ std::string ShortcutsHint(const std::vector<Binding>& bindings) {
   return "";
 }
 
+// Shortcuts handled directly inside a view's own OnEvent() (F5/t/Enter/
+// Shift+Enter in Source Control, Escape in the diff view) rather than
+// through CommandRegistry's global chord table, so BuildShortcutEntries()
+// above never sees them. CLAUDE.md's keybinding rule requires every new
+// shortcut -- global or local -- to show up in this popup, so this list is
+// the manually-maintained half of that contract.
+std::vector<ShortcutEntry> ContextualShortcutEntries() {
+  return {
+      {"F5", "Refresh git status (Source Control, focused)"},
+      {"t", "Toggle Source Control List/Tree view"},
+      {"Enter", "Open file diff vs. HEAD (Source Control)"},
+      {"Shift+Enter / o", "Open file directly, no diff (Source Control)"},
+      {"Esc", "Close the file diff view"},
+  };
+}
+
 }  // namespace
 
 Application::Application(std::filesystem::path workspace_root)
@@ -71,10 +88,16 @@ int Application::Run() {
     }
   });
 
+  diff_view_ = Make<DiffView>(&show_diff_);
+
   auto source_control = Make<SourceControlView>(
       workspace_root_,
-      [this, editor_view](const std::filesystem::path& path) {
-        if (documents_.OpenFile(path)) editor_view->TakeFocus();
+      [this, editor_view](const std::filesystem::path& path, ScmOpenMode mode) {
+        if (mode == ScmOpenMode::Diff) {
+          OpenDiff(path);
+        } else if (documents_.OpenFile(path)) {
+          editor_view->TakeFocus();
+        }
       },
       [this] { RefreshGitStatus(); });
   source_control_ = source_control;
@@ -85,16 +108,20 @@ int Application::Run() {
   layout_ = Make<Layout>(sidebar_, editor_, &sidebar_width, ShortcutsHint(commands_.Bindings()));
   RefreshGitStatus();  // populate before first paint, not just on first Alt+G
 
-  auto shortcuts_popup =
-      Make<ShortcutsPopup>(BuildShortcutEntries(commands_.Bindings()), &show_shortcuts_);
+  auto shortcut_entries = BuildShortcutEntries(commands_.Bindings());
+  auto contextual_entries = ContextualShortcutEntries();
+  shortcut_entries.insert(shortcut_entries.end(), contextual_entries.begin(),
+                           contextual_entries.end());
+  auto shortcuts_popup = Make<ShortcutsPopup>(std::move(shortcut_entries), &show_shortcuts_);
 
   RegisterCommands();
 
-  Component root = CatchEvent(Modal(layout_, shortcuts_popup, &show_shortcuts_), [this](Event event) {
-    // While the popup is open, let it handle input directly (it closes
-    // itself on Esc/Enter/F1) instead of letting global commands fire
-    // underneath it.
-    if (show_shortcuts_) return false;
+  auto with_diff = Modal(layout_, diff_view_, &show_diff_);
+  Component root = CatchEvent(Modal(with_diff, shortcuts_popup, &show_shortcuts_), [this](Event event) {
+    // While the popup or the diff view is open, let it handle input
+    // directly (each closes itself on Esc, the popup also on Enter/F1)
+    // instead of letting global commands fire underneath it.
+    if (show_shortcuts_ || show_diff_) return false;
     auto command = commands_.CommandForChord(event);
     return command.has_value() && commands_.Dispatch(*command);
   });
@@ -164,6 +191,14 @@ void Application::RefreshGitStatus() {
   for (const auto& f : git_status_.files) git_status_by_path_[f.path] = f;
   source_control_->SetStatus(git_status_);
   layout_->SetGitStatus(git_status_);
+}
+
+void Application::OpenDiff(const std::filesystem::path& path) {
+  std::error_code ec;
+  auto rel = std::filesystem::relative(path, workspace_root_, ec);
+  std::string title = ec ? path.string() : rel.string();
+  diff_view_->SetDiff(title, GetFileDiff(workspace_root_, path));
+  show_diff_ = true;
 }
 
 }  // namespace puka

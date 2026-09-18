@@ -46,6 +46,32 @@ struct GitRepoStatus {
 // silently on any failure (not a repo, unreadable, etc.).
 GitRepoStatus GetRepoStatus(const std::filesystem::path& root);
 
+enum class GitDiffLineOrigin { Context, Addition, Deletion };
+
+// One line of a computed file diff. `old_lineno`/`new_lineno` are -1 when
+// the line has no counterpart on that side (a pure addition has no
+// old_lineno, a pure deletion has no new_lineno) -- context lines always
+// have both.
+struct GitDiffLine {
+  GitDiffLineOrigin origin;
+  int old_lineno = -1;
+  int new_lineno = -1;
+  std::string content;  // no trailing newline
+};
+
+struct GitFileDiff {
+  bool available = false;  // false => repo/blob/file couldn't be read at all
+  bool binary = false;     // true => content differs but is binary; `lines` is empty
+  std::vector<GitDiffLine> lines;
+};
+
+// Diffs `path`'s current on-disk content against its blob at HEAD. A file
+// absent from HEAD (untracked/new) diffs against an empty "old" side, so
+// the whole file shows as additions; a file absent from disk (staged
+// deletion) diffs against an empty "new" side, so it shows as all
+// deletions. Synchronous, like GetRepoStatus.
+GitFileDiff GetFileDiff(const std::filesystem::path& root, const std::filesystem::path& path);
+
 // --- Pure logic below, unit-testable without a live repository ---------
 // Take plain bitmasks/strings so this header stays libgit2-type-free; only
 // GitService.cpp includes any <git2/...> header.

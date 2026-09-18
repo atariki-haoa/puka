@@ -16,10 +16,16 @@ namespace puka {
 // behavior -- press `t` while Source Control is focused to switch.
 enum class ScmViewMode { List, Tree };
 
+// Enter opens a file's diff against HEAD; Shift+Enter (or the `o` fallback,
+// since Shift+Enter isn't reliably distinguishable from plain Enter in
+// every terminal -- see the raw chord comment in OnEventList/OnEventTree)
+// opens the file directly, bypassing the diff view entirely.
+enum class ScmOpenMode { Diff, File };
+
 class SourceControlView : public ftxui::ComponentBase {
  public:
   SourceControlView(std::filesystem::path root,
-                     std::function<void(const std::filesystem::path&)> on_open,
+                     std::function<void(const std::filesystem::path&, ScmOpenMode)> on_open,
                      std::function<void()> on_refresh_requested);
 
   ftxui::Element OnRender() override;
@@ -39,7 +45,7 @@ class SourceControlView : public ftxui::ComponentBase {
   void RefreshTreeVisible();
 
   std::filesystem::path root_;
-  std::function<void(const std::filesystem::path&)> on_open_;
+  std::function<void(const std::filesystem::path&, ScmOpenMode)> on_open_;
   std::function<void()> on_refresh_requested_;
   GitRepoStatus status_;
   ScmViewMode mode_ = ScmViewMode::List;

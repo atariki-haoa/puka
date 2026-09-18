@@ -5,6 +5,7 @@ add_library(puka_ui STATIC
   SearchView.cpp
   SourceControlView.cpp
   ScmTree.cpp
+  DiffView.cpp
   GitStatusBadge.cpp
   Sidebar.cpp
   Layout.cpp
