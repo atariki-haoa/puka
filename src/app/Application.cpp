@@ -48,7 +48,8 @@ std::string ShortcutsHint(const std::vector<Binding>& bindings) {
 // Shortcuts handled directly inside a view's own OnEvent() (F5/t/Enter/
 // Shift+Enter in Source Control, Escape in the diff view, Enter/arrows/Esc
 // in the editor's find bar once Ctrl+F opens it, n/Enter/Esc for Explorer's
-// new-file prompt) rather than through CommandRegistry's global chord table,
+// new-file prompt, d/y/n/Esc for Explorer's delete-confirmation prompt)
+// rather than through CommandRegistry's global chord table,
 // so BuildShortcutEntries() above never sees them. CLAUDE.md's keybinding
 // rule requires every new shortcut -- global or local -- to show up in this
 // popup, so this list is the manually-maintained half of that contract.
@@ -73,6 +74,9 @@ std::vector<ShortcutEntry> ContextualShortcutEntries() {
       {"n / N", "Create a new file (Explorer, focused)"},
       {"Enter", "Confirm new file name (Explorer, prompt open)"},
       {"Esc", "Cancel new file creation (Explorer)"},
+      {"d / D", "Delete the selected file or folder (Explorer, focused)"},
+      {"y / Y", "Confirm deletion (Explorer, prompt open)"},
+      {"n / N / Esc", "Cancel deletion (Explorer, prompt open)"},
   };
 }
 
@@ -137,12 +141,15 @@ int Application::Run() {
   auto with_diff = Modal(layout_, diff_view_, &show_diff_);
   Component root = CatchEvent(Modal(with_diff, shortcuts_popup, &show_shortcuts_), [this](Event event) {
     // While the popup, the diff view, the editor's find bar, or the
-    // Explorer's new-file prompt is open, let it handle input directly
-    // (each closes itself on Esc, the popup also on Enter/F1) instead of
-    // letting global commands -- Esc/"toggle pane focus" in particular --
-    // fire underneath it.
+    // Explorer's new-file/delete prompt is open, let it handle input
+    // directly (each closes itself on Esc, the popup also on Enter/F1)
+    // instead of letting global commands -- Esc/"toggle pane focus" in
+    // particular -- fire underneath it.
     if (show_shortcuts_ || show_diff_) return false;
-    if (editor_view_->FindActive() || file_tree_view_->CreatingFile()) return false;
+    if (editor_view_->FindActive() || file_tree_view_->CreatingFile() ||
+        file_tree_view_->DeletingFile()) {
+      return false;
+    }
     auto command = commands_.CommandForChord(event);
     return command.has_value() && commands_.Dispatch(*command);
   });

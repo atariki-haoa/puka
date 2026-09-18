@@ -35,10 +35,16 @@ class FileTreeView : public ftxui::ComponentBase {
   // focus. See CreateFile()'s doc comment for where the file actually lands.
   bool CreatingFile() const { return creating_file_; }
 
+  // True while the delete confirmation prompt is open -- same reasoning and
+  // same Application-side suppression as CreatingFile() above.
+  bool DeletingFile() const { return deleting_file_; }
+
  private:
   void RefreshVisible();
   void StartCreateFile();
   void CreateFile();
+  void StartDeleteFile();
+  void DeleteFile();
   ftxui::Element RenderTree();
   FileTreeNode* FindVisibleNodeByPath(const std::filesystem::path& path);
 
@@ -57,6 +63,9 @@ class FileTreeView : public ftxui::ComponentBase {
   bool creating_file_ = false;
   std::string new_file_name_;
   FileTreeNode* new_file_dir_node_ = nullptr;
+
+  bool deleting_file_ = false;
+  FileTreeNode* delete_target_ = nullptr;
 };
 
 }  // namespace puka

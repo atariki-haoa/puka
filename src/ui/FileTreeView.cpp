@@ -44,10 +44,17 @@ void FileTreeView::RefreshVisible() {
 
 Element FileTreeView::OnRender() {
   Element body = RenderTree();
-  if (!creating_file_) return body;
-
-  Element prompt = hbox({text(" New file: ") | bold, text(new_file_name_) | underlined, text("_")});
-  return vbox({prompt, separator(), body | flex});
+  if (creating_file_) {
+    Element prompt = hbox({text(" New file: ") | bold, text(new_file_name_) | underlined, text("_")});
+    return vbox({prompt, separator(), body | flex});
+  }
+  if (deleting_file_) {
+    std::string kind = delete_target_->is_directory ? "folder" : "file";
+    Element prompt = hbox({text(" Delete " + kind + " '" + delete_target_->name + "'? ") | bold,
+                            text("(y/n)") | dim});
+    return vbox({prompt, separator(), body | flex});
+  }
+  return body;
 }
 
 Element FileTreeView::RenderTree() {
@@ -116,12 +123,34 @@ bool FileTreeView::OnEvent(Event event) {
     return true;  // swallow everything else while the prompt is open
   }
 
+  if (deleting_file_) {
+    if (event == Event::Character("y") || event == Event::Character("Y")) {
+      DeleteFile();
+      deleting_file_ = false;
+      return true;
+    }
+    if (event == Event::Escape || event == Event::Character("n") || event == Event::Character("N")) {
+      deleting_file_ = false;
+      delete_target_ = nullptr;
+      return true;
+    }
+    return true;  // swallow everything else while the prompt is open
+  }
+
   // Local to this view (like the SCM view's own F5/t), not a global
   // CommandRegistry binding -- only meaningful while Explorer is focused.
   // Works even on an empty folder (StartCreateFile falls back to the
   // workspace root when nothing is selected).
   if (event == Event::Character("n") || event == Event::Character("N")) {
     StartCreateFile();
+    return true;
+  }
+
+  // Deletes whatever is currently selected -- no-op (StartDeleteFile
+  // returns without opening the prompt) when the tree is empty, unlike "n"
+  // above which can still fall back to the workspace root.
+  if (event == Event::Character("d") || event == Event::Character("D")) {
+    StartDeleteFile();
     return true;
   }
 
@@ -212,6 +241,29 @@ void FileTreeView::CreateFile() {
     }
   }
   if (on_open_) on_open_(new_path);
+}
+
+void FileTreeView::StartDeleteFile() {
+  if (visible_.empty()) return;
+  delete_target_ = visible_[static_cast<size_t>(selected_)].node;
+  deleting_file_ = true;
+}
+
+// Removes delete_target_ from disk -- remove_all so a directory goes
+// recursively, which also covers the plain-file case identically to
+// remove() -- then refreshes just its parent directory's listing, the same
+// narrow-refresh approach CreateFile() uses. Silently no-ops on a failed
+// removal (e.g. permissions): same fail-quiet posture as CreateFile().
+void FileTreeView::DeleteFile() {
+  std::filesystem::path deleted_path = delete_target_->path;
+  std::error_code ec;
+  std::filesystem::remove_all(deleted_path, ec);
+  delete_target_ = nullptr;
+
+  FileTreeNode* parent = FindVisibleNodeByPath(deleted_path.parent_path());
+  if (!parent) parent = &tree_.Root();
+  tree_.RefreshChildren(*parent);
+  RefreshVisible();
 }
 
 }  // namespace puka
