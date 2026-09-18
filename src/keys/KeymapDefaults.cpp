@@ -74,6 +74,14 @@ std::vector<Binding> DefaultKeymap() {
       // is never a character a user would type into search/editor text, so
       // it's safe to bind globally without shadowing normal input.
       {Event::F1, "workbench.action.toggleShortcutsHelp", "F1", "to info"},
+
+      // Ctrl+C already exits (FTXUI raises SIGINT for any unhandled
+      // Ctrl+C), but that's a signal-driven kill, not a real "quit"
+      // command. Ctrl+Q is the common IDE/terminal-app quit chord and, like
+      // Ctrl+S above, reaches the app fine despite historically being an
+      // XON/XOFF flow-control byte -- FTXUI's raw terminal mode disables
+      // that.
+      {Event::CtrlQ, "workbench.action.quit", "Ctrl+Q", "Quit puka"},
   };
 }
 

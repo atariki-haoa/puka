@@ -217,6 +217,10 @@ void Application::RegisterCommands() {
   });
   commands_.Register("workbench.action.toggleShortcutsHelp",
                       [this] { show_shortcuts_ = !show_shortcuts_; });
+  // Exit() unwinds screen_.Loop() cleanly (restoring the terminal the same
+  // way reaching the end of Run() would) rather than the signal-based kill
+  // Ctrl+C falls back on.
+  commands_.Register("workbench.action.quit", [this] { screen_.Exit(); });
 }
 
 void Application::StartGitPollThread() {
