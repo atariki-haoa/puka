@@ -6,17 +6,21 @@ name: Release
 # `pull_request` trigger: adding one would double-fire this workflow for
 # every merged PR (it'd also match the `push` it produces).
 #
-# The bump type is read from the message of the commit that landed on main:
-#   fix/...  or patch/...    -> patch
-#   feature/... or minor/... -> minor
-#   major/...                -> major
-# For a squash-merged PR that message is the PR title (GitHub's default
-# squash commit message). For a "create a merge commit" PR it's
+# The bump type is read from the message of the commit that landed on main --
+# specifically its leading word, whatever comes after (":", "/", " ", "(",
+# nothing at the very start of a merge-commit's "Merge pull request..."
+# line, etc. -- anything non-alphabetic ends the word):
+#   fix, patch            -> patch
+#   feature, feat, minor  -> minor
+#   major                 -> major
+# So "fix: ...", "fix/...", "fix(scope): ...", and "fix ..." are all
+# equivalent. For a squash-merged PR the message is the PR title (GitHub's
+# default squash commit message). For a "create a merge commit" PR it's
 # "Merge pull request #N from owner/branch\n\n<PR title>" -- every line of
 # the message is checked, and a leading "Merge pull request #N from owner/"
 # is stripped before matching, so either the PR title or a like-prefixed
 # branch name (e.g. `feature/foo`) is enough. Commits that match none of the
-# prefixes (the common case) are left alone -- no bump, no release.
+# above (the common case) are left alone -- no bump, no release.
 #
 # workflow_dispatch is kept as a manual escape hatch: run it by hand to force
 # a specific bump, or leave it on "auto" to reuse the same detection above.
@@ -63,16 +67,18 @@ jobs:
             bump=""
             while IFS= read -r line; do
               stripped="$(sed -E 's|^Merge pull request #[0-9]+ from [^/]+/||' <<< "$line")"
-              stripped_lc="$(tr '[:upper:]' '[:lower:]' <<< "$stripped")"
-              case "$stripped_lc" in
-                fix/*|patch/*) bump=patch; break ;;
-                feature/*|minor/*) bump=minor; break ;;
-                major/*) bump=major; break ;;
-              esac
+              if [[ "$stripped" =~ ^([A-Za-z]+) ]]; then
+                word="$(tr '[:upper:]' '[:lower:]' <<< "${BASH_REMATCH[1]}")"
+                case "$word" in
+                  fix|patch) bump=patch; break ;;
+                  feature|feat|minor) bump=minor; break ;;
+                  major) bump=major; break ;;
+                esac
+              fi
             done <<< "$message"
 
             if [ -z "$bump" ]; then
-              echo "No fix/, patch/, feature/, minor/, or major/ prefix found in the commit message -- skipping release."
+              echo "No fix/patch/feature/feat/minor/major keyword found at the start of the commit message -- skipping release."
               echo "skip=true" >> "$GITHUB_OUTPUT"
               exit 0
             fi

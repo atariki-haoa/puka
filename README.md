@@ -120,18 +120,20 @@ cd build && ctest --output-on-failure
 The current version is the single `project(puka VERSION X.Y.Z ...)` line at the top of
 `CMakeLists.txt`. The **Release** workflow (`.github/workflows/release.yml`) runs on every push
 to `main` -- which includes every PR merged into `main`, whatever merge strategy is used -- and
-looks at the message of the commit that landed there for one of these prefixes:
+looks at the *leading word* of the commit message that landed there -- whatever follows it
+(`:`, `/`, a space, `(scope):`, or nothing at all) is ignored:
 
-| Prefix                    | Bump    |
-| -------------------------- | ------- |
-| `fix/...` or `patch/...`   | patch   |
-| `feature/...` or `minor/...` | minor |
-| `major/...`                | major   |
+| Leading word          | Bump  |
+| ---------------------- | ----- |
+| `fix`, `patch`         | patch |
+| `feature`, `feat`, `minor` | minor |
+| `major`                | major |
 
-For a squash-merged PR that's the PR title; for a "create a merge commit" PR it's either the PR
-title or the source branch name (e.g. a PR from branch `feature/foo` bumps minor even if the PR
-title doesn't start with `feature/`). Commits matching none of these prefixes -- the common case
--- are left alone: no bump, no tag, no release. When a bump is detected, the workflow updates
+So `fix: ...`, `fix/...`, `fix(scope): ...`, and `fix ...` are all equivalent. For a
+squash-merged PR the message is the PR title; for a "create a merge commit" PR it's either the
+PR title or the source branch name (e.g. a PR from branch `feature/foo` bumps minor even if the
+PR title doesn't start with `feature`). Commits matching none of these -- the common case -- are
+left alone: no bump, no tag, no release. When a bump is detected, the workflow updates
 `CMakeLists.txt`, commits, pushes a `vX.Y.Z` tag, and publishes a GitHub Release with
 auto-generated notes.
 
