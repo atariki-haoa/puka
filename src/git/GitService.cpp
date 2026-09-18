@@ -5,7 +5,9 @@
 #include <system_error>
 
 #include <git2/blob.h>
+#include <git2/branch.h>
 #include <git2/global.h>
+#include <git2/graph.h>
 #include <git2/object.h>
 #include <git2/oid.h>
 #include <git2/patch.h>
@@ -117,6 +119,29 @@ GitRepoStatus GetRepoStatus(const std::filesystem::path& root) {
       result.detached = true;
     }
     git_reference_free(head_ref);
+  }
+
+  // git_repository_head resolves HEAD to the branch's own direct reference
+  // (not the symbolic "HEAD" indirection above), which is what
+  // git_branch_upstream needs. Fails silently for a detached/unborn HEAD --
+  // has_upstream just stays false, no special-casing needed.
+  git_reference* branch_ref = nullptr;
+  if (git_repository_head(&branch_ref, repo) == 0) {
+    git_reference* upstream_ref = nullptr;
+    if (git_branch_upstream(&upstream_ref, branch_ref) == 0) {
+      const git_oid* local_oid = git_reference_target(branch_ref);
+      const git_oid* upstream_oid = git_reference_target(upstream_ref);
+      size_t ahead = 0;
+      size_t behind = 0;
+      if (local_oid && upstream_oid &&
+          git_graph_ahead_behind(&ahead, &behind, repo, local_oid, upstream_oid) == 0) {
+        result.has_upstream = true;
+        result.ahead = static_cast<int>(ahead);
+        result.behind = static_cast<int>(behind);
+      }
+      git_reference_free(upstream_ref);
+    }
+    git_reference_free(branch_ref);
   }
 
   if (!result.repo_root.empty()) {

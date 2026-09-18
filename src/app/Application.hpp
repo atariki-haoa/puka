@@ -1,6 +1,10 @@
 #pragma once
+#include <atomic>
+#include <condition_variable>
 #include <filesystem>
 #include <memory>
+#include <mutex>
+#include <thread>
 #include <unordered_map>
 
 #include <ftxui/component/screen_interactive.hpp>
@@ -26,10 +30,22 @@ class Application {
   void RefreshGitStatus();
   void OpenDiff(const std::filesystem::path& path);
 
+  // Wakes the otherwise purely input-driven FTXUI loop on an interval so git
+  // status (and ahead/behind vs. upstream) stays live without a keypress --
+  // see StartGitPollThread's doc comment in Application.cpp for why the
+  // thread itself never touches libgit2.
+  void StartGitPollThread();
+  void StopGitPollThread();
+
   std::filesystem::path workspace_root_;
   ftxui::ScreenInteractive screen_;
   DocumentManager documents_;
   CommandRegistry commands_;
+
+  std::thread git_poll_thread_;
+  std::mutex git_poll_mutex_;
+  std::condition_variable git_poll_cv_;
+  std::atomic<bool> git_poll_stop_{false};
 
   GitRepoStatus git_status_;
   std::unordered_map<std::filesystem::path, GitFileStatus> git_status_by_path_;

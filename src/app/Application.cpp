@@ -1,6 +1,7 @@
 #include "app/Application.hpp"
 
 #include <algorithm>
+#include <chrono>
 #include <system_error>
 
 #include <ftxui/component/component.hpp>
@@ -50,6 +51,14 @@ std::string ShortcutsHint(const std::vector<Binding>& bindings) {
 // above never sees them. CLAUDE.md's keybinding rule requires every new
 // shortcut -- global or local -- to show up in this popup, so this list is
 // the manually-maintained half of that contract.
+// Local-only poll: GetRepoStatus never touches the network (ahead/behind is
+// computed against whatever the upstream tracking ref was left at by the
+// user's last manual fetch/pull/push), so this interval is about UI
+// liveness, not request budget -- a few seconds is imperceptible against a
+// git status scan that the codebase already treats as cheap enough to run
+// on every keypress-triggered refresh.
+constexpr std::chrono::seconds kGitPollInterval{2};
+
 std::vector<ShortcutEntry> ContextualShortcutEntries() {
   return {
       {"F5", "Refresh git status (Source Control, focused)"},
@@ -131,7 +140,9 @@ int Application::Run() {
   // lets our own Undo binding receive it instead.
   screen_.ForceHandleCtrlZ(false);
 
+  StartGitPollThread();
   screen_.Loop(root);
+  StopGitPollThread();
   return 0;
 }
 
@@ -183,6 +194,40 @@ void Application::RegisterCommands() {
   });
   commands_.Register("workbench.action.toggleShortcutsHelp",
                       [this] { show_shortcuts_ = !show_shortcuts_; });
+}
+
+void Application::StartGitPollThread() {
+  // The thread itself never calls into libgit2 -- it only sleeps and wakes
+  // the main loop via the thread-safe screen_.Post(), which runs the actual
+  // RefreshGitStatus() (and the GetRepoStatus() call inside it) back on the
+  // main/loop thread, the same thread every other git refresh already runs
+  // on. That sidesteps any question of whether GitService's synchronous,
+  // reopen-every-call design is safe to invoke concurrently with itself.
+  git_poll_thread_ = std::thread([this] {
+    std::unique_lock<std::mutex> lock(git_poll_mutex_);
+    while (!git_poll_cv_.wait_for(lock, kGitPollInterval,
+                                   [this] { return git_poll_stop_.load(); })) {
+      // Post(Closure) alone runs RefreshGitStatus() but does NOT mark
+      // FTXUI's frame dirty -- App::Internal::HandleTask only clears
+      // frame_valid_ on its Event branch, not its Closure branch, so
+      // Draw() would silently no-op without this. PostEvent(Event::Custom)
+      // is FTXUI's own idiom for "redraw, no event semantics attached"
+      // (see its use in app.cpp after a selection change).
+      screen_.Post([this] {
+        RefreshGitStatus();
+        screen_.PostEvent(Event::Custom);
+      });
+    }
+  });
+}
+
+void Application::StopGitPollThread() {
+  {
+    std::lock_guard<std::mutex> lock(git_poll_mutex_);
+    git_poll_stop_ = true;
+  }
+  git_poll_cv_.notify_all();
+  if (git_poll_thread_.joinable()) git_poll_thread_.join();
 }
 
 void Application::RefreshGitStatus() {

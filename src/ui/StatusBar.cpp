@@ -47,6 +47,12 @@ Element RenderStatusBar(const std::string& hint, const GitRepoStatus& git_status
         dim;
 
     Elements row = {branch_part};
+    if (git_status.has_upstream && (git_status.ahead > 0 || git_status.behind > 0)) {
+      row.push_back(text(" "));
+      if (git_status.ahead > 0) row.push_back(text("↑" + std::to_string(git_status.ahead)));
+      if (git_status.ahead > 0 && git_status.behind > 0) row.push_back(text(" "));
+      if (git_status.behind > 0) row.push_back(text("↓" + std::to_string(git_status.behind)));
+    }
     Elements diff_parts = DiffSummaryParts(git_status);
     if (!diff_parts.empty()) {
       row.push_back(text("  "));

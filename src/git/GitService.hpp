@@ -37,6 +37,15 @@ struct GitRepoStatus {
                                      // !is_repo or the repo is bare
   std::vector<GitFileStatus> files;
 
+  // Local-only comparison of HEAD against its configured upstream tracking
+  // ref (refs/remotes/<remote>/<branch>) -- never triggers a network fetch,
+  // so this only ever reflects however stale the tracking ref was left by
+  // the last `git fetch`/`pull`/`push` the user ran themselves. false when
+  // HEAD is detached, unborn, or the branch has no upstream configured.
+  bool has_upstream = false;
+  int ahead = 0;
+  int behind = 0;
+
   // Paths (absolute) covered by a .gitignore rule (or .git/info/exclude).
   // An ignored directory is reported as a single entry for the directory
   // itself -- libgit2 doesn't recurse into it -- so a path nested inside one
