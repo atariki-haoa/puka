@@ -19,6 +19,19 @@ std::string_view Glyph(SidebarView view) {
   return "";
 }
 
+// See Icons::ExplorerColor()'s doc comment: selected=false is the panel's
+// accent hue (an inactive tab's glyph color); selected=true is the
+// foreground that stays legible once that same accent is used as the
+// active tab's bgcolor() fill.
+Color Accent(SidebarView view, bool selected) {
+  switch (view) {
+    case SidebarView::Explorer: return Icons::ExplorerColor(selected);
+    case SidebarView::Search: return Icons::SearchColor(selected);
+    case SidebarView::SourceControl: return Icons::SourceControlColor(selected);
+  }
+  return Color::Default;
+}
+
 }  // namespace
 
 Sidebar::Sidebar(Component explorer, Component search, Component source_control) {
@@ -33,12 +46,19 @@ Element Sidebar::OnRender() {
   Elements tabs;
   for (int i = 0; i < 3; ++i) {
     auto view = static_cast<SidebarView>(i);
+    bool selected = (view == active_);
     Element label = text("  " + std::string(Glyph(view)) + "  ");
-    if (view == active_) label = label | inverted | bold;
+    // Each panel keeps its own accent at all times (so the three stay
+    // easy to tell apart by color alone); the active one additionally
+    // gets its accent as a bgcolor() fill, with a foreground picked for
+    // contrast against that specific fill -- not the file tree's plain
+    // inverted/bold, which would erase the per-panel color identity on
+    // selection.
+    label = selected ? label | bold | color(Accent(view, true)) | bgcolor(Accent(view, false))
+                      : label | color(Accent(view, false));
     tabs.push_back(label);
   }
   Element switcher = hbox(std::move(tabs));
-  if (focused) switcher = switcher | color(Color::Cyan);
 
   Element content = ChildAt(static_cast<size_t>(active_))->Render();
 

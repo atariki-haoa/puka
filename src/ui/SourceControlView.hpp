@@ -12,8 +12,8 @@ namespace puka {
 
 // List shows every changed file as one flat row (full path from the
 // workspace root); Tree groups them into their folder structure, like
-// VSCode's Source Control panel toggle. Defaults to List, matching current
-// behavior -- press `t` while Source Control is focused to switch.
+// VSCode's Source Control panel toggle. Defaults to Tree -- press `t` while
+// Source Control is focused to switch to List.
 enum class ScmViewMode { List, Tree };
 
 // Enter opens a file's diff against HEAD; Shift+Enter (or the `o` fallback,
@@ -50,7 +50,7 @@ class SourceControlView : public ftxui::ComponentBase {
   std::function<void(const std::filesystem::path&, ScmOpenMode)> on_open_;
   std::function<void()> on_refresh_requested_;
   GitRepoStatus status_;
-  ScmViewMode mode_ = ScmViewMode::List;
+  ScmViewMode mode_ = ScmViewMode::Tree;
   int list_selected_ = 0;
 
   // status_.files split into the two groups VSCode's Source Control panel

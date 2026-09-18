@@ -31,6 +31,19 @@ class Icons {
   static std::string_view SearchGlyph();
   static std::string_view SourceControlGlyph();
 
+  // One accent hue per sidebar panel, kept apart from the file-type/badge
+  // palette so the activity rail reads as its own thing at a glance.
+  // `selected=false` (the default) gives the accent itself, used as the
+  // glyph's foreground on the ordinary background for an inactive tab.
+  // `selected=true` gives the foreground to pair with that *same* accent
+  // used as a bgcolor() fill on the active tab -- a contrast switch, not a
+  // darken, since the active tab's whole cell becomes the accent color
+  // rather than staying on the default background (contrast FileColor(),
+  // which darkens the same hue for a selected row's light-grey background).
+  static ftxui::Color ExplorerColor(bool selected = false);
+  static ftxui::Color SearchColor(bool selected = false);
+  static ftxui::Color SourceControlColor(bool selected = false);
+
  private:
   static bool use_nerd_font_;
 };

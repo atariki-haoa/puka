@@ -79,6 +79,16 @@ const std::unordered_map<std::string_view, Rgb>& ExtensionColorTable() {
 
 constexpr Rgb kFolderRgb{0x42, 0xA5, 0xF5};
 
+// Activity-rail accents: Explorer reuses the same blue as the folder icon
+// (both are "files" in spirit); Search is magnifier-glass amber; Source
+// Control is Git's own brand orange -- three hues spread far enough apart
+// (blue / yellow-amber / red-orange) to stay distinguishable even on
+// low-color terminals, and none of them collides with GitStatusBadge's
+// green/tan/red/teal/purple delta colors used elsewhere in the same UI.
+constexpr Rgb kExplorerAccent{0x42, 0xA5, 0xF5};
+constexpr Rgb kSearchAccent{0xFF, 0xCA, 0x28};
+constexpr Rgb kSourceControlAccent{0xF0, 0x50, 0x33};
+
 // ~45% brightness -- enough to pull even the palest entries (Python's pale
 // yellow, C's pale blue-grey) down to something that still reads clearly
 // against the light-grey cursor row, without going so dark the hue stops
@@ -116,6 +126,21 @@ std::string_view Icons::SearchGlyph() {
 std::string_view Icons::SourceControlGlyph() {
   static constexpr Glyphs g{"", "gt"};
   return use_nerd_font_ ? g.nerd_font : g.fallback;
+}
+
+// Black reads cleanly on both the blue and amber fills (mid-to-high
+// brightness); the orange fill is darker, so white is the one that stays
+// legible there instead.
+ftxui::Color Icons::ExplorerColor(bool selected) {
+  return selected ? ftxui::Color::Black : ToColor(kExplorerAccent, false);
+}
+
+ftxui::Color Icons::SearchColor(bool selected) {
+  return selected ? ftxui::Color::Black : ToColor(kSearchAccent, false);
+}
+
+ftxui::Color Icons::SourceControlColor(bool selected) {
+  return selected ? ftxui::Color::White : ToColor(kSourceControlAccent, false);
 }
 
 }  // namespace puka
