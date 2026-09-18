@@ -45,6 +45,18 @@ std::string BranchShorthand(std::string_view symbolic_target) {
   return std::string(symbolic_target);
 }
 
+bool IsPathIgnored(const std::filesystem::path& path,
+                    const std::vector<std::filesystem::path>& ignored) {
+  for (const auto& entry : ignored) {
+    std::string rel = path.lexically_relative(entry).generic_string();
+    // "." (path == entry) or anything not starting with ".." (path nested
+    // under entry) means `path` falls under this ignored entry. A sibling
+    // or unrelated path relates back with a leading "..".
+    if (!rel.empty() && rel.compare(0, 2, "..") != 0) return true;
+  }
+  return false;
+}
+
 namespace {
 
 std::string StripTrailingNewline(std::string line) {
@@ -114,12 +126,16 @@ GitRepoStatus GetRepoStatus(const std::filesystem::path& root) {
     git_status_options opts{};
     opts.version = GIT_STATUS_OPTIONS_VERSION;
     opts.show = GIT_STATUS_SHOW_INDEX_AND_WORKDIR;
-    // Deliberately not GIT_STATUS_OPT_INCLUDE_IGNORED (matches VSCode's
-    // default of not cluttering the view with ignored files) and not
-    // GIT_STATUS_OPT_UPDATE_INDEX (mutates the on-disk index as a side
-    // effect -- unnecessary and out of place for a read-only feature).
+    // INCLUDE_IGNORED (but deliberately not RECURSE_IGNORED_DIRS) folds each
+    // ignored directory into a single entry for the directory itself rather
+    // than walking its contents -- cheap, and enough to feed
+    // `ignored_paths` for the Explorer's greyed-out rows. These entries are
+    // split out below rather than landing in `files`, matching VSCode's
+    // default of not cluttering the Source Control view with them. Not
+    // GIT_STATUS_OPT_UPDATE_INDEX: mutates the on-disk index as a side
+    // effect -- unnecessary and out of place for a read-only feature.
     opts.flags = GIT_STATUS_OPT_INCLUDE_UNTRACKED | GIT_STATUS_OPT_RECURSE_UNTRACKED_DIRS |
-                 GIT_STATUS_OPT_RENAMES_HEAD_TO_INDEX;
+                 GIT_STATUS_OPT_RENAMES_HEAD_TO_INDEX | GIT_STATUS_OPT_INCLUDE_IGNORED;
 
     git_status_list* list = nullptr;
     if (git_status_list_new(&list, repo, &opts) == 0) {
@@ -129,6 +145,10 @@ GitRepoStatus GetRepoStatus(const std::filesystem::path& root) {
         const git_status_entry* entry = git_status_byindex(list, i);
         const char* rel = PathOf(entry);
         if (!rel) continue;
+        if (entry->status & GIT_STATUS_IGNORED) {
+          result.ignored_paths.push_back(result.repo_root / rel);
+          continue;
+        }
         GitFileStatus file;
         file.path = result.repo_root / rel;
         file.staged = MapStagedFlags(static_cast<unsigned int>(entry->status));

@@ -20,8 +20,12 @@ class Icons {
   // Per-extension accent color for the file tree glyph (approximating the
   // common devicon/Seti-UI associations, e.g. Rust orange, Go cyan). Unknown
   // extensions fall back to Color::Default so generic files stay unstyled.
-  static ftxui::Color FileColor(std::string_view extension);
-  static ftxui::Color FolderColor();
+  // `selected` darkens the result -- several of these devicon colors (pale
+  // yellow, light blue-grey) were picked against a dark background and
+  // nearly vanish on the light-grey cursor row; pass true while rendering a
+  // selected row to keep the icon legible there.
+  static ftxui::Color FileColor(std::string_view extension, bool selected = false);
+  static ftxui::Color FolderColor(bool selected = false);
 
   static std::string_view ExplorerGlyph();
   static std::string_view SearchGlyph();

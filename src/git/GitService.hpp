@@ -36,6 +36,12 @@ struct GitRepoStatus {
   std::filesystem::path repo_root;  // absolute working directory; empty if
                                      // !is_repo or the repo is bare
   std::vector<GitFileStatus> files;
+
+  // Paths (absolute) covered by a .gitignore rule (or .git/info/exclude).
+  // An ignored directory is reported as a single entry for the directory
+  // itself -- libgit2 doesn't recurse into it -- so a path nested inside one
+  // of these needs IsPathIgnored's prefix check below, not an exact match.
+  std::vector<std::filesystem::path> ignored_paths;
 };
 
 // Synchronous, stateless (reopens the repository every call -- libgit2 does
@@ -81,5 +87,11 @@ GitDeltaType MapUnstagedFlags(unsigned int raw);  // raw & GIT_STATUS_WT_*
 // "refs/heads/main" -> "main"; anything without that prefix (unexpected ref
 // form) is returned unchanged.
 std::string BranchShorthand(std::string_view symbolic_target);
+
+// True if `path` is itself one of `ignored`, or nested inside one of them
+// (see GitRepoStatus::ignored_paths for why a prefix check -- not just an
+// exact match -- is needed).
+bool IsPathIgnored(const std::filesystem::path& path,
+                    const std::vector<std::filesystem::path>& ignored);
 
 }  // namespace puka

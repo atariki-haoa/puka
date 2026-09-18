@@ -89,8 +89,13 @@ Element SourceControlView::RenderList() {
     auto rel = std::filesystem::relative(f.path, root_, ec);
     std::string path_str = ec ? f.path.string() : rel.string();
 
-    Element row = hbox({FileBadge(f), text(" " + path_str)});
-    if (i == list_selected_) row = row | inverted;
+    bool selected = (i == list_selected_);
+    Color name_color = selected ? Color(Color::Black) : Color(Color::Default);
+    Element row = hbox({FileBadge(f), text(" " + path_str) | color(name_color)});
+    // Not `| inverted` -- see the comment on the equivalent line in
+    // FileTreeView::OnRender: it'd turn the badge's own fg color into a
+    // colored background instead of a uniform selection highlight.
+    if (selected) row = row | bgcolor(Color::GrayLight);
     rows.push_back(row);
   }
   return vbox(std::move(rows)) | focusPosition(0, list_selected_) | frame | flex;
@@ -104,17 +109,19 @@ Element SourceControlView::RenderTree() {
     std::string_view glyph = row.node->is_directory
                                   ? Icons::FolderGlyph(row.node->expanded)
                                   : Icons::FileGlyph(row.node->path.extension().string());
+    bool selected = (i == tree_selected_);
     Color glyph_color = row.node->is_directory
-                             ? Icons::FolderColor()
-                             : Icons::FileColor(row.node->path.extension().string());
-    Element line = hbox({text(indent + std::string(glyph)) | color(glyph_color),
-                          text(" " + row.node->name)});
+                             ? Icons::FolderColor(selected)
+                             : Icons::FileColor(row.node->path.extension().string(), selected);
+    Color name_color = selected ? Color(Color::Black) : Color(Color::Default);
+    Element line = hbox({text(indent), text(std::string(glyph)) | color(glyph_color),
+                          text(" " + row.node->name) | color(name_color)});
 
     if (!row.node->is_directory) {
       line = hbox({line, filler(), FileBadge(row.node->status), text(" ")});
     }
 
-    if (i == tree_selected_) line = line | inverted;
+    if (selected) line = line | bgcolor(Color::GrayLight);
     rows.push_back(line);
   }
   return vbox(std::move(rows)) | focusPosition(0, tree_selected_) | frame | flex;

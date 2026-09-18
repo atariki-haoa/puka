@@ -53,6 +53,18 @@ void TestBranchShorthandPassesThroughUnknownForm() {
   Check(BranchShorthand("") == "", "empty input left unchanged");
 }
 
+void TestIsPathIgnored() {
+  std::vector<std::filesystem::path> ignored = {"/repo/build", "/repo/.env"};
+  Check(IsPathIgnored("/repo/build", ignored), "the ignored entry itself");
+  Check(IsPathIgnored("/repo/build/sub/file.o", ignored),
+        "nested under an ignored directory that libgit2 folded into one entry");
+  Check(IsPathIgnored("/repo/.env", ignored), "exact-match ignored file");
+  Check(!IsPathIgnored("/repo/src/build_helpers.cpp", ignored),
+        "sibling that merely shares a path prefix, not nested under it");
+  Check(!IsPathIgnored("/repo/src/main.cpp", ignored), "unrelated tracked file");
+  Check(!IsPathIgnored("/repo", {}), "empty ignored list");
+}
+
 }  // namespace
 
 int main() {
@@ -61,6 +73,7 @@ int main() {
   TestMapFlagsHandleCombinedBits();
   TestBranchShorthandStripsPrefix();
   TestBranchShorthandPassesThroughUnknownForm();
+  TestIsPathIgnored();
 
   if (g_failures == 0) {
     std::cout << "test_git_status_mapping: all tests passed\n";

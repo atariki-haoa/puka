@@ -1,5 +1,6 @@
 #include "ui/Icons.hpp"
 
+#include <cstdint>
 #include <unordered_map>
 
 namespace puka {
@@ -54,34 +55,53 @@ std::string_view Icons::FolderGlyph(bool expanded) {
 
 namespace {
 
+struct Rgb {
+  uint8_t r, g, b;
+};
+
 // Approximate devicon/Seti-UI colors so file kinds stay visually
 // distinguishable at a glance (Rust orange, Go cyan, JSON gold, etc).
-const std::unordered_map<std::string_view, ftxui::Color>& ExtensionColorTable() {
-  using ftxui::Color;
-  static const std::unordered_map<std::string_view, Color> table = {
-      {".cpp", Color::RGB(0x51, 0x9A, 0xBA)}, {".cc", Color::RGB(0x51, 0x9A, 0xBA)},
-      {".hpp", Color::RGB(0x51, 0x9A, 0xBA)}, {".h", Color::RGB(0xA8, 0xB9, 0xCC)},
-      {".c", Color::RGB(0xA8, 0xB9, 0xCC)},   {".py", Color::RGB(0xFF, 0xD4, 0x3B)},
-      {".js", Color::RGB(0xF1, 0xE0, 0x5A)},  {".jsx", Color::RGB(0x61, 0xDA, 0xFB)},
-      {".ts", Color::RGB(0x31, 0x78, 0xC6)},  {".tsx", Color::RGB(0x31, 0x78, 0xC6)},
-      {".json", Color::RGB(0xCB, 0xCB, 0x41)}, {".md", Color::RGB(0xB0, 0xB0, 0xB0)},
-      {".sh", Color::RGB(0x4E, 0xAA, 0x25)},  {".rs", Color::RGB(0xDE, 0xA5, 0x84)},
-      {".go", Color::RGB(0x00, 0xAD, 0xD8)},  {".yml", Color::RGB(0xA0, 0x52, 0xA5)},
-      {".yaml", Color::RGB(0xA0, 0x52, 0xA5)}, {".toml", Color::RGB(0x9C, 0x4A, 0x1A)},
-      {".txt", Color::RGB(0xCC, 0xCC, 0xCC)},
+const std::unordered_map<std::string_view, Rgb>& ExtensionColorTable() {
+  static const std::unordered_map<std::string_view, Rgb> table = {
+      {".cpp", {0x51, 0x9A, 0xBA}}, {".cc", {0x51, 0x9A, 0xBA}},
+      {".hpp", {0x51, 0x9A, 0xBA}}, {".h", {0xA8, 0xB9, 0xCC}},
+      {".c", {0xA8, 0xB9, 0xCC}},   {".py", {0xFF, 0xD4, 0x3B}},
+      {".js", {0xF1, 0xE0, 0x5A}},  {".jsx", {0x61, 0xDA, 0xFB}},
+      {".ts", {0x31, 0x78, 0xC6}},  {".tsx", {0x31, 0x78, 0xC6}},
+      {".json", {0xCB, 0xCB, 0x41}}, {".md", {0xB0, 0xB0, 0xB0}},
+      {".sh", {0x4E, 0xAA, 0x25}},  {".rs", {0xDE, 0xA5, 0x84}},
+      {".go", {0x00, 0xAD, 0xD8}},  {".yml", {0xA0, 0x52, 0xA5}},
+      {".yaml", {0xA0, 0x52, 0xA5}}, {".toml", {0x9C, 0x4A, 0x1A}},
+      {".txt", {0xCC, 0xCC, 0xCC}},
   };
   return table;
 }
 
-}  // namespace
+constexpr Rgb kFolderRgb{0x42, 0xA5, 0xF5};
 
-ftxui::Color Icons::FileColor(std::string_view extension) {
-  const auto& table = ExtensionColorTable();
-  auto it = table.find(extension);
-  return it != table.end() ? it->second : ftxui::Color::Default;
+// ~45% brightness -- enough to pull even the palest entries (Python's pale
+// yellow, C's pale blue-grey) down to something that still reads clearly
+// against the light-grey cursor row, without going so dark the hue stops
+// being recognizable.
+uint8_t Darken(uint8_t channel) { return static_cast<uint8_t>(channel * 0.45f); }
+
+ftxui::Color ToColor(Rgb rgb, bool selected) {
+  if (selected) return ftxui::Color::RGB(Darken(rgb.r), Darken(rgb.g), Darken(rgb.b));
+  return ftxui::Color::RGB(rgb.r, rgb.g, rgb.b);
 }
 
-ftxui::Color Icons::FolderColor() { return ftxui::Color::RGB(0x42, 0xA5, 0xF5); }
+}  // namespace
+
+ftxui::Color Icons::FileColor(std::string_view extension, bool selected) {
+  const auto& table = ExtensionColorTable();
+  auto it = table.find(extension);
+  if (it == table.end()) {
+    return selected ? ftxui::Color(ftxui::Color::Black) : ftxui::Color(ftxui::Color::Default);
+  }
+  return ToColor(it->second, selected);
+}
+
+ftxui::Color Icons::FolderColor(bool selected) { return ToColor(kFolderRgb, selected); }
 
 std::string_view Icons::ExplorerGlyph() {
   static constexpr Glyphs g{"", "fi"};

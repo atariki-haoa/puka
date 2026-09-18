@@ -76,7 +76,7 @@ int Application::Run() {
       [this, editor_view](const std::filesystem::path& path) {
         if (documents_.OpenFile(path)) editor_view->TakeFocus();
       },
-      &git_status_by_path_);
+      &git_status_by_path_, &git_status_.ignored_paths);
 
   auto search_view = Make<SearchView>(workspace_root_, [this, editor_view](const SearchHit& hit) {
     if (auto* doc = documents_.OpenFile(hit.file)) {
