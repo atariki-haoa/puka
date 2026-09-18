@@ -27,7 +27,10 @@ Badges can get squeezed out by a long filename in a narrow sidebar -- resize
 the terminal wider if one seems to be missing. The repository name and
 current branch are also shown on the left of the bottom status bar at all
 times (blank outside a git workspace), so you don't need to switch to
-Source Control just to see which branch you're on.
+Source Control just to see which branch you're on. Changed files default to
+a flat List (full path per row); press `t` while Source Control is focused
+to switch to a Tree grouped by folder (`Enter`/`Right`/`Left` expand and
+collapse a folder there) -- a folder's collapsed state survives refreshes.
 
 **Syntax highlighting** (VSCode Dark+-approximating colors) works for C, C++,
 Python, JavaScript, TypeScript, TSX, JSON, and Bash, detected by file
