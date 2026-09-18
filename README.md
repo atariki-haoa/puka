@@ -107,6 +107,29 @@ profile's font settings first.
 cd build && ctest --output-on-failure
 ```
 
+## Versioning
+
+The current version is the single `project(puka VERSION X.Y.Z ...)` line at the top of
+`CMakeLists.txt`. The **Release** workflow (`.github/workflows/release.yml`) runs on every push
+to `main` -- which includes every PR merged into `main`, whatever merge strategy is used -- and
+looks at the message of the commit that landed there for one of these prefixes:
+
+| Prefix                    | Bump    |
+| -------------------------- | ------- |
+| `fix/...` or `patch/...`   | patch   |
+| `feature/...` or `minor/...` | minor |
+| `major/...`                | major   |
+
+For a squash-merged PR that's the PR title; for a "create a merge commit" PR it's either the PR
+title or the source branch name (e.g. a PR from branch `feature/foo` bumps minor even if the PR
+title doesn't start with `feature/`). Commits matching none of these prefixes -- the common case
+-- are left alone: no bump, no tag, no release. When a bump is detected, the workflow updates
+`CMakeLists.txt`, commits, pushes a `vX.Y.Z` tag, and publishes a GitHub Release with
+auto-generated notes.
+
+To force a specific bump regardless of the last commit message, run the workflow manually from
+the Actions tab and pick `major`/`minor`/`patch` instead of `auto`.
+
 ## Keybindings (Phase 1)
 
 | Action | Chord(s) |
