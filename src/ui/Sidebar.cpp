@@ -1,6 +1,9 @@
 #include "ui/Sidebar.hpp"
 
+#include <utility>
+
 #include <ftxui/component/event.hpp>
+#include <ftxui/component/mouse.hpp>
 #include <ftxui/dom/elements.hpp>
 
 #include "ui/Icons.hpp"
@@ -34,7 +37,9 @@ Color Accent(SidebarView view, bool selected) {
 
 }  // namespace
 
-Sidebar::Sidebar(Component explorer, Component search, Component source_control) {
+Sidebar::Sidebar(Component explorer, Component search, Component source_control,
+                  std::function<void(SidebarView)> on_view_clicked)
+    : on_view_clicked_(std::move(on_view_clicked)) {
   Add(std::move(explorer));
   Add(std::move(search));
   Add(std::move(source_control));
@@ -56,6 +61,7 @@ Element Sidebar::OnRender() {
     // selection.
     label = selected ? label | bold | color(Accent(view, true)) | bgcolor(Accent(view, false))
                       : label | color(Accent(view, false));
+    label = label | reflect(switcher_boxes_[static_cast<size_t>(i)]);
     tabs.push_back(label);
   }
   Element switcher = hbox(std::move(tabs));
@@ -70,6 +76,16 @@ Element Sidebar::OnRender() {
 }
 
 bool Sidebar::OnEvent(Event event) {
+  if (event.is_mouse() && event.mouse().button == Mouse::Left &&
+      event.mouse().motion == Mouse::Pressed) {
+    for (size_t i = 0; i < switcher_boxes_.size(); ++i) {
+      if (!switcher_boxes_[i].Contain(event.mouse().x, event.mouse().y)) continue;
+      active_ = static_cast<SidebarView>(i);
+      TakeFocus();
+      if (on_view_clicked_) on_view_clicked_(active_);
+      return true;
+    }
+  }
   return ChildAt(static_cast<size_t>(active_))->OnEvent(event);
 }
 

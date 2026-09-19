@@ -67,6 +67,24 @@ void TestF1ShowsShortcutsHelp() {
         "F1 resolves to toggling the shortcuts popup");
 }
 
+void TestAltDigitsJumpToTabIndex() {
+  CommandRegistry registry(DefaultKeymap());
+  // Two adjacent string literals, not one -- "\x1B1" would parse as a single
+  // three-hex-digit escape (\x1B1), not ESC followed by the character '1'.
+  auto alt_1 = registry.CommandForChord(Event::Special("\x1B" "1"));
+  auto alt_9 = registry.CommandForChord(Event::Special("\x1B" "9"));
+  Check(alt_1.has_value() && *alt_1 == "workbench.action.openEditorAtIndex1",
+        "Alt+1 resolves to jumping to tab 1");
+  Check(alt_9.has_value() && *alt_9 == "workbench.action.openEditorAtIndex9",
+        "Alt+9 resolves to jumping to tab 9");
+  // Ctrl+3 sends the same lone ESC byte as the Escape key -- make sure it
+  // stayed bound to pane-focus toggling, not accidentally shadowed by a
+  // tab-index binding.
+  auto ctrl_3 = registry.CommandForChord(Event::Escape);
+  Check(ctrl_3.has_value() && *ctrl_3 == "workbench.action.togglePaneFocus",
+        "the lone ESC byte still resolves to toggling pane focus, not a tab index");
+}
+
 void TestAltArrowsCycleSidebarView() {
   CommandRegistry registry(DefaultKeymap());
   auto next = registry.CommandForChord(Event::Special("\x1B[1;3C"));
@@ -86,6 +104,7 @@ int main() {
   TestCommandForChordFindsSecondaryBinding();
   TestAltBFocusesExplorerNotToggleSidebar();
   TestF1ShowsShortcutsHelp();
+  TestAltDigitsJumpToTabIndex();
   TestAltArrowsCycleSidebarView();
 
   if (g_failures == 0) {

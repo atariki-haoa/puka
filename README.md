@@ -156,8 +156,10 @@ the Actions tab and pick `major`/`minor`/`patch` instead of `auto`.
 | Save | `Ctrl+S` |
 | Close tab | `Ctrl+W` or `Alt+W` |
 | Next / previous tab | `Ctrl+Right` / `Ctrl+Left` |
+| Go to tab 1-9 | `Alt+1` .. `Alt+9` |
 | Undo / Redo | `Ctrl+Z` / `Ctrl+Y` |
 | Move / select | Arrows, Home, End, PageUp, PageDown |
+| Switch tab / sidebar view, open a file, expand a folder | Mouse click |
 | Refresh git status (while Source Control is focused) | `F5` |
 | Toggle Source Control List/Tree view (while focused) | `t` |
 | Open file diff vs. HEAD (Source Control) | `Enter` |
@@ -182,7 +184,10 @@ puka in your terminal, `Alt+B`/`Alt+F`/`Alt+G` reach the same views
 directly. `Shift+Enter` in Source Control is in the same boat -- most
 terminals send the exact same bytes for `Enter` and `Shift+Enter` by
 default, so `o` is a guaranteed-reliable fallback bound to the same "open
-directly" action. New keybindings are added
+directly" action. `Alt+1`..`Alt+9` likewise stand in for VSCode's
+`Ctrl+1`..`Ctrl+9`: most of those don't have a distinct C0 control code in
+classic xterm encoding, and the couple that do (`Ctrl+3`, `Ctrl+8`) collide
+with the bytes `Escape` and `Backspace` already send. New keybindings are added
 table-by-table in `src/keys/KeymapDefaults.cpp` as features land (or, for a
 shortcut local to one view rather than global, directly in that view's
 `OnEvent()` -- either way it must also be added to the `F1` shortcuts

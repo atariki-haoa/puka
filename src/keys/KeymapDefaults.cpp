@@ -5,8 +5,31 @@
 namespace puka {
 using ftxui::Event;
 
+namespace {
+
+// Alt+1..Alt+9 jump-to-tab bindings (VSCode's own chord is Ctrl+1..Ctrl+9,
+// but that's not usable here: classic xterm encoding has no distinct C0 code
+// for most Ctrl+<digit> combinations, and the ones that do exist collide with
+// keys already bound elsewhere -- Ctrl+3 sends the same single ESC byte
+// (0x1B) as the Escape key, and Ctrl+8 commonly sends the same DEL byte as
+// Backspace. Alt+<digit> is encoded the exact same ESC-prefix way as the
+// Alt+<letter> bindings above (see AltB/AltF/AltG's own comment), so it's
+// exactly as reliable and doesn't collide with anything.
+std::vector<Binding> TabIndexBindings() {
+  std::vector<Binding> bindings;
+  for (int i = 1; i <= 9; ++i) {
+    std::string digit(1, static_cast<char>('0' + i));
+    bindings.push_back({Event::Special(std::string("\x1B") + digit),
+                         "workbench.action.openEditorAtIndex" + digit, "Alt+" + digit,
+                         "Go to tab " + digit});
+  }
+  return bindings;
+}
+
+}  // namespace
+
 std::vector<Binding> DefaultKeymap() {
-  return {
+  std::vector<Binding> bindings = {
       // Toggle sidebar. Ctrl+B is VSCode's default. It's also tmux's default
       // prefix key and won't reach the app under tmux; there is currently no
       // fallback chord for this one specifically (Alt+B was reassigned to
@@ -52,6 +75,9 @@ std::vector<Binding> DefaultKeymap() {
       {Event::ArrowRightCtrl, "workbench.action.nextEditor", "Ctrl+Right", "Next tab"},
       {Event::ArrowLeftCtrl, "workbench.action.previousEditor", "Ctrl+Left", "Previous tab"},
 
+      // Jumping directly to a tab by number: see TabIndexBindings()'s own
+      // comment above for why this is Alt+<digit>, not VSCode's Ctrl+<digit>.
+
       // Cycle the sidebar's Explorer/Search/Source-Control views. Ctrl+Right
       // Ctrl+Left above already mean "switch editor tab", so this uses
       // Alt+Right/Alt+Left instead -- FTXUI has no named event for
@@ -83,6 +109,10 @@ std::vector<Binding> DefaultKeymap() {
       // that.
       {Event::CtrlQ, "workbench.action.quit", "Ctrl+Q", "Quit puka"},
   };
+
+  auto tab_index_bindings = TabIndexBindings();
+  bindings.insert(bindings.end(), tab_index_bindings.begin(), tab_index_bindings.end());
+  return bindings;
 }
 
 }  // namespace puka

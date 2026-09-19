@@ -6,6 +6,7 @@
 #include <utility>
 
 #include <ftxui/component/event.hpp>
+#include <ftxui/component/mouse.hpp>
 #include <ftxui/dom/elements.hpp>
 #include <ftxui/screen/terminal.hpp>
 
@@ -111,11 +112,13 @@ Element EditorView::OnRender() {
   }
 
   const auto& docs = documents_.documents();
+  tab_boxes_.assign(docs.size(), Box());
   Elements tabs;
   for (size_t i = 0; i < docs.size(); ++i) {
     std::string label = " " + docs[i].DisplayName() + (docs[i].dirty() ? " *" : "") + " ";
     Element tab = text(label);
     if (i == documents_.active_index()) tab = tab | inverted | bold;
+    tab = tab | reflect(tab_boxes_[i]);
     tabs.push_back(tab);
   }
   Element tab_bar = hbox(std::move(tabs));
@@ -181,6 +184,17 @@ Element EditorView::RenderFindBar() {
 
 bool EditorView::OnEvent(Event event) {
   if (documents_.empty()) return false;
+
+  if (event.is_mouse() && event.mouse().button == Mouse::Left &&
+      event.mouse().motion == Mouse::Pressed) {
+    for (size_t i = 0; i < tab_boxes_.size(); ++i) {
+      if (!tab_boxes_[i].Contain(event.mouse().x, event.mouse().y)) continue;
+      documents_.SetActiveIndex(i);
+      TakeFocus();
+      return true;
+    }
+  }
+
   Document* doc = documents_.Active();
 
   if (find_active_) {

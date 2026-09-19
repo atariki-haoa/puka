@@ -37,6 +37,10 @@ void DocumentManager::PrevTab() {
   active_ = (active_ + docs_.size() - 1) % docs_.size();
 }
 
+void DocumentManager::SetActiveIndex(size_t index) {
+  if (index < docs_.size()) active_ = index;
+}
+
 Document* DocumentManager::Active() {
   if (docs_.empty()) return nullptr;
   return &docs_[active_];

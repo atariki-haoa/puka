@@ -6,6 +6,7 @@
 #include <vector>
 
 #include <ftxui/component/component_base.hpp>
+#include <ftxui/screen/box.hpp>
 
 #include "fs/FileTree.hpp"
 #include "git/GitService.hpp"
@@ -47,6 +48,9 @@ class FileTreeView : public ftxui::ComponentBase {
   void DeleteFile();
   ftxui::Element RenderTree();
   FileTreeNode* FindVisibleNodeByPath(const std::filesystem::path& path);
+  // Opens the file, or toggles the folder, at `selected_` -- shared by the
+  // Return key and a mouse click on the row, which mean the same thing.
+  void ActivateSelected();
 
   // Declared before tree_ so the constructor can copy it before moving the
   // same value into FileTree's constructor (member init order follows
@@ -59,6 +63,10 @@ class FileTreeView : public ftxui::ComponentBase {
   const std::vector<std::filesystem::path>* ignored_paths_;
   std::vector<FileTree::VisibleRow> visible_;
   int selected_ = 0;
+  // One box per visible row, captured by RenderTree's reflect() so OnEvent
+  // can hit-test a mouse click against it -- rebuilt every render, same as
+  // visible_ itself.
+  std::vector<ftxui::Box> row_boxes_;
 
   bool creating_file_ = false;
   std::string new_file_name_;

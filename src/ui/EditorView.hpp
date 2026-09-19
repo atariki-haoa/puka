@@ -1,7 +1,9 @@
 #pragma once
 #include <string>
+#include <vector>
 
 #include <ftxui/component/component_base.hpp>
+#include <ftxui/screen/box.hpp>
 
 #include "editor/DocumentManager.hpp"
 
@@ -38,6 +40,11 @@ class EditorView : public ftxui::ComponentBase {
   ftxui::Element RenderFindBar();
 
   DocumentManager& documents_;
+
+  // One box per open tab, captured by OnRender's reflect() so OnEvent can
+  // hit-test a mouse click against it -- rebuilt every render, same as
+  // DocumentManager::documents() itself.
+  std::vector<ftxui::Box> tab_boxes_;
 
   bool find_active_ = false;
   std::string find_query_;

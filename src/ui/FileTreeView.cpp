@@ -4,6 +4,7 @@
 #include <fstream>
 
 #include <ftxui/component/event.hpp>
+#include <ftxui/component/mouse.hpp>
 #include <ftxui/dom/elements.hpp>
 
 #include "git/GitService.hpp"
@@ -62,6 +63,7 @@ Element FileTreeView::RenderTree() {
     return vbox({filler(), hcenter(text("(empty folder)") | dim), filler()});
   }
 
+  row_boxes_.assign(visible_.size(), Box());
   Elements rows;
   for (int i = 0; i < static_cast<int>(visible_.size()); ++i) {
     const auto& row = visible_[i];
@@ -96,6 +98,7 @@ Element FileTreeView::RenderTree() {
     // background instead of a uniform selection highlight. An explicit
     // bgcolor keeps every glyph's color as foreground-on-grey instead.
     if (selected) line = line | bgcolor(Color::GrayLight);
+    line = line | reflect(row_boxes_[static_cast<size_t>(i)]);
     rows.push_back(line);
   }
   return vbox(std::move(rows)) | focusPosition(0, selected_) | frame | flex;
@@ -156,6 +159,18 @@ bool FileTreeView::OnEvent(Event event) {
 
   if (visible_.empty()) return false;
 
+  if (event.is_mouse() && event.mouse().button == Mouse::Left &&
+      event.mouse().motion == Mouse::Pressed) {
+    for (int i = 0; i < static_cast<int>(row_boxes_.size()); ++i) {
+      if (!row_boxes_[static_cast<size_t>(i)].Contain(event.mouse().x, event.mouse().y)) continue;
+      selected_ = i;
+      TakeFocus();
+      ActivateSelected();
+      return true;
+    }
+    return false;
+  }
+
   if (event == Event::ArrowUp) {
     selected_ = std::max(0, selected_ - 1);
     return true;
@@ -167,12 +182,7 @@ bool FileTreeView::OnEvent(Event event) {
 
   auto* node = visible_[static_cast<size_t>(selected_)].node;
   if (event == Event::Return) {
-    if (node->is_directory) {
-      tree_.ToggleExpanded(*node);
-      RefreshVisible();
-    } else if (on_open_) {
-      on_open_(node->path);
-    }
+    ActivateSelected();
     return true;
   }
   if (event == Event::ArrowRight) {
@@ -190,6 +200,16 @@ bool FileTreeView::OnEvent(Event event) {
     return true;
   }
   return false;
+}
+
+void FileTreeView::ActivateSelected() {
+  auto* node = visible_[static_cast<size_t>(selected_)].node;
+  if (node->is_directory) {
+    tree_.ToggleExpanded(*node);
+    RefreshVisible();
+  } else if (on_open_) {
+    on_open_(node->path);
+  }
 }
 
 FileTreeNode* FileTreeView::FindVisibleNodeByPath(const std::filesystem::path& path) {

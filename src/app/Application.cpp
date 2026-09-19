@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <chrono>
+#include <string>
 #include <system_error>
 
 #include <ftxui/component/component.hpp>
@@ -63,6 +64,9 @@ constexpr std::chrono::seconds kGitPollInterval{2};
 
 std::vector<ShortcutEntry> ContextualShortcutEntries() {
   return {
+      {"Click", "Switch sidebar view (Explorer/Search/Source Control icons)"},
+      {"Click", "Switch to that editor tab"},
+      {"Click", "Open a file / expand or collapse a folder (Explorer)"},
       {"F5", "Refresh git status (Source Control, focused)"},
       {"t", "Toggle Source Control List/Tree view"},
       {"Enter", "Open file diff vs. HEAD (Source Control)"},
@@ -124,7 +128,9 @@ int Application::Run() {
       [this] { RefreshGitStatus(); });
   source_control_ = source_control;
 
-  sidebar_ = Make<Sidebar>(explorer, search_view, source_control);
+  sidebar_ = Make<Sidebar>(explorer, search_view, source_control, [this](SidebarView view) {
+    if (view == SidebarView::SourceControl) RefreshGitStatus();
+  });
 
   int sidebar_width = std::max(20, Terminal::Size().dimx / 5);
   layout_ = Make<Layout>(sidebar_, editor_, &sidebar_width, ShortcutsHint(commands_.Bindings()));
@@ -209,6 +215,10 @@ void Application::RegisterCommands() {
   commands_.Register("workbench.action.closeActiveEditor", [this] { documents_.CloseActive(); });
   commands_.Register("workbench.action.nextEditor", [this] { documents_.NextTab(); });
   commands_.Register("workbench.action.previousEditor", [this] { documents_.PrevTab(); });
+  for (int i = 0; i < 9; ++i) {
+    commands_.Register("workbench.action.openEditorAtIndex" + std::to_string(i + 1),
+                        [this, i] { documents_.SetActiveIndex(static_cast<size_t>(i)); });
+  }
   commands_.Register("undo", [this] {
     if (auto* doc = documents_.Active()) doc->Undo();
   });
