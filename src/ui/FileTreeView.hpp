@@ -42,7 +42,7 @@ class FileTreeView : public ftxui::ComponentBase {
 
  private:
   void RefreshVisible();
-  void StartCreateFile();
+  void StartCreateFile(bool is_folder);
   void CreateFile();
   void StartDeleteFile();
   void DeleteFile();
@@ -69,6 +69,10 @@ class FileTreeView : public ftxui::ComponentBase {
   std::vector<ftxui::Box> row_boxes_;
 
   bool creating_file_ = false;
+  // Set by StartCreateFile(is_folder) to steer CreateFile()'s branch --
+  // false makes and opens a plain file (the original behavior), true makes
+  // a directory and skips opening it (a folder isn't a tab).
+  bool new_entry_is_folder_ = false;
   std::string new_file_name_;
   FileTreeNode* new_file_dir_node_ = nullptr;
 

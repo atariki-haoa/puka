@@ -46,7 +46,8 @@ void FileTreeView::RefreshVisible() {
 Element FileTreeView::OnRender() {
   Element body = RenderTree();
   if (creating_file_) {
-    Element prompt = hbox({text(" New file: ") | bold, text(new_file_name_) | underlined, text("_")});
+    std::string label = new_entry_is_folder_ ? " New folder: " : " New file: ";
+    Element prompt = hbox({text(label) | bold, text(new_file_name_) | underlined, text("_")});
     return vbox({prompt, separator(), body | flex});
   }
   if (deleting_file_) {
@@ -143,9 +144,15 @@ bool FileTreeView::OnEvent(Event event) {
   // Local to this view (like the SCM view's own F5/t), not a global
   // CommandRegistry binding -- only meaningful while Explorer is focused.
   // Works even on an empty folder (StartCreateFile falls back to the
-  // workspace root when nothing is selected).
-  if (event == Event::Character("n") || event == Event::Character("N")) {
-    StartCreateFile();
+  // workspace root when nothing is selected). Unlike d/D below, case here is
+  // meaningful: lowercase makes a file, Shift+n (delivered as plain "N",
+  // not an escape sequence, so it's portable) makes a folder instead.
+  if (event == Event::Character("n")) {
+    StartCreateFile(/*is_folder=*/false);
+    return true;
+  }
+  if (event == Event::Character("N")) {
+    StartCreateFile(/*is_folder=*/true);
     return true;
   }
 
@@ -219,7 +226,7 @@ FileTreeNode* FileTreeView::FindVisibleNodeByPath(const std::filesystem::path& p
   return nullptr;
 }
 
-void FileTreeView::StartCreateFile() {
+void FileTreeView::StartCreateFile(bool is_folder) {
   // Default target: the workspace root, covering both "nothing selected"
   // and "tree is empty" -- Root() is never itself a row in visible_.
   new_file_dir_node_ = &tree_.Root();
@@ -234,20 +241,27 @@ void FileTreeView::StartCreateFile() {
     }
   }
   creating_file_ = true;
+  new_entry_is_folder_ = is_folder;
   new_file_name_.clear();
 }
 
-// Touch-creates an empty file in new_file_dir_node_'s directory, refreshes
-// just that directory's listing (expanding it if needed so the new file is
-// visible), then opens it like any other Explorer click. Silently no-ops on
-// a name that already exists or that Buffer can't be written to (e.g. a
-// name containing '/' whose parent doesn't exist) -- same "fail quiet, not
-// crash" posture as the rest of this read-mostly view.
+// Creates new_file_name_ inside new_file_dir_node_'s directory -- a plain
+// touched file, or (new_entry_is_folder_) a directory -- refreshes just that
+// directory's listing (expanding it if needed so the new entry is visible),
+// then opens the file like any other Explorer click; a folder isn't a tab,
+// so it's just selected instead. Silently no-ops on a name that already
+// exists or that can't be created (e.g. a name containing '/' whose parent
+// doesn't exist) -- same "fail quiet, not crash" posture as the rest of this
+// read-mostly view.
 void FileTreeView::CreateFile() {
   std::filesystem::path new_path = new_file_dir_node_->path / new_file_name_;
   std::error_code ec;
   if (!std::filesystem::exists(new_path, ec)) {
-    std::ofstream(new_path, std::ios::binary).close();
+    if (new_entry_is_folder_) {
+      std::filesystem::create_directory(new_path, ec);
+    } else {
+      std::ofstream(new_path, std::ios::binary).close();
+    }
   }
 
   new_file_dir_node_->expanded = true;
@@ -260,7 +274,7 @@ void FileTreeView::CreateFile() {
       break;
     }
   }
-  if (on_open_) on_open_(new_path);
+  if (!new_entry_is_folder_ && on_open_) on_open_(new_path);
 }
 
 void FileTreeView::StartDeleteFile() {
