@@ -32,22 +32,24 @@ class Application {
   void RefreshGitStatus();
   void OpenDiff(const std::filesystem::path& path);
 
-  // Wakes the otherwise purely input-driven FTXUI loop on an interval so git
-  // status (and ahead/behind vs. upstream) stays live without a keypress --
-  // see StartGitPollThread's doc comment in Application.cpp for why the
-  // thread itself never touches libgit2.
-  void StartGitPollThread();
-  void StopGitPollThread();
+  // Wakes the otherwise purely input-driven FTXUI loop on an interval so both
+  // git status (ahead/behind vs. upstream) and the Explorer tree (files/
+  // folders created or removed outside puka, e.g. `mkdir` from another
+  // terminal) stay live without a keypress -- see StartPollThread's doc
+  // comment in Application.cpp for why the thread itself never touches
+  // libgit2 or the filesystem directly.
+  void StartPollThread();
+  void StopPollThread();
 
   std::filesystem::path workspace_root_;
   ftxui::ScreenInteractive screen_;
   DocumentManager documents_;
   CommandRegistry commands_;
 
-  std::thread git_poll_thread_;
-  std::mutex git_poll_mutex_;
-  std::condition_variable git_poll_cv_;
-  std::atomic<bool> git_poll_stop_{false};
+  std::thread poll_thread_;
+  std::mutex poll_mutex_;
+  std::condition_variable poll_cv_;
+  std::atomic<bool> poll_stop_{false};
 
   GitRepoStatus git_status_;
   std::unordered_map<std::filesystem::path, GitFileStatus> git_status_by_path_;

@@ -57,6 +57,7 @@ std::vector<HighlightSpan> Document::HighlightSpans(size_t start_byte, size_t en
 }
 
 void Document::InsertText(std::string_view text) {
+  if (HasSelection()) DeleteSelection();
   BufferEdit edit = buffer_.InsertText(cursor_.row, cursor_.col, text);
   cursor_.row = edit.new_end_row;
   cursor_.col = edit.new_end_col;
@@ -68,6 +69,10 @@ void Document::InsertChar(char c) { InsertText(std::string_view(&c, 1)); }
 void Document::InsertNewline() { InsertText("\n"); }
 
 void Document::DeleteBackward() {
+  if (HasSelection()) {
+    DeleteSelection();
+    return;
+  }
   if (cursor_.col > 0) {
     auto [text, edit] = buffer_.DeleteRange(cursor_.row, cursor_.col - 1, cursor_.row, cursor_.col);
     (void)text;
@@ -84,6 +89,10 @@ void Document::DeleteBackward() {
 }
 
 void Document::DeleteForward() {
+  if (HasSelection()) {
+    DeleteSelection();
+    return;
+  }
   size_t line_len = buffer_.Line(cursor_.row).size();
   if (cursor_.col < line_len) {
     auto [text, edit] = buffer_.DeleteRange(cursor_.row, cursor_.col, cursor_.row, cursor_.col + 1);
@@ -97,6 +106,10 @@ void Document::DeleteForward() {
 }
 
 void Document::DeleteLine() {
+  // Unlike the Move*/DeleteSelection paths, this doesn't go through
+  // UpdateSelectionAnchor -- drop any active selection explicitly so its
+  // anchor can't outlive this edit and end up pointing at a row that no
+  // longer exists.
   size_t row = cursor_.row;
   size_t line_count = buffer_.LineCount();
 
@@ -130,7 +143,16 @@ void Document::DeleteLine() {
   if (highlighter_) highlighter_->Edit(edit, buffer_.ToString());
 }
 
-void Document::MoveLeft() {
+void Document::UpdateSelectionAnchor(bool extend_selection) {
+  if (extend_selection) {
+    if (!selection_anchor_) selection_anchor_ = cursor_;
+  } else {
+    selection_anchor_.reset();
+  }
+}
+
+void Document::MoveLeft(bool extend_selection) {
+  UpdateSelectionAnchor(extend_selection);
   if (cursor_.col > 0) {
     cursor_.col -= 1;
   } else if (cursor_.row > 0) {
@@ -139,7 +161,8 @@ void Document::MoveLeft() {
   }
 }
 
-void Document::MoveRight() {
+void Document::MoveRight(bool extend_selection) {
+  UpdateSelectionAnchor(extend_selection);
   if (cursor_.col < buffer_.Line(cursor_.row).size()) {
     cursor_.col += 1;
   } else if (cursor_.row + 1 < buffer_.LineCount()) {
@@ -148,34 +171,81 @@ void Document::MoveRight() {
   }
 }
 
-void Document::MoveUp() {
+void Document::MoveUp(bool extend_selection) {
+  UpdateSelectionAnchor(extend_selection);
   if (cursor_.row == 0) return;
   cursor_.row -= 1;
   cursor_.col = std::min(cursor_.col, buffer_.Line(cursor_.row).size());
 }
 
-void Document::MoveDown() {
+void Document::MoveDown(bool extend_selection) {
+  UpdateSelectionAnchor(extend_selection);
   if (cursor_.row + 1 >= buffer_.LineCount()) return;
   cursor_.row += 1;
   cursor_.col = std::min(cursor_.col, buffer_.Line(cursor_.row).size());
 }
 
-void Document::MoveHome() { cursor_.col = 0; }
+void Document::MoveHome(bool extend_selection) {
+  UpdateSelectionAnchor(extend_selection);
+  cursor_.col = 0;
+}
 
-void Document::MoveEnd() { cursor_.col = buffer_.Line(cursor_.row).size(); }
+void Document::MoveEnd(bool extend_selection) {
+  UpdateSelectionAnchor(extend_selection);
+  cursor_.col = buffer_.Line(cursor_.row).size();
+}
 
-void Document::MovePageUp(size_t page_size) {
+void Document::MovePageUp(size_t page_size, bool extend_selection) {
+  UpdateSelectionAnchor(extend_selection);
   cursor_.row = (cursor_.row > page_size) ? cursor_.row - page_size : 0;
   cursor_.col = std::min(cursor_.col, buffer_.Line(cursor_.row).size());
 }
 
-void Document::MovePageDown(size_t page_size) {
+void Document::MovePageDown(size_t page_size, bool extend_selection) {
+  UpdateSelectionAnchor(extend_selection);
   size_t last_row = buffer_.LineCount() - 1;
   cursor_.row = std::min(last_row, cursor_.row + page_size);
   cursor_.col = std::min(cursor_.col, buffer_.Line(cursor_.row).size());
 }
 
+std::pair<Cursor, Cursor> Document::SelectionRange() const {
+  Cursor anchor = selection_anchor_.value_or(cursor_);
+  auto key = [](const Cursor& c) { return std::pair(c.row, c.col); };
+  return key(anchor) <= key(cursor_) ? std::pair(anchor, cursor_) : std::pair(cursor_, anchor);
+}
+
+std::string Document::SelectedText() const {
+  if (!HasSelection()) return "";
+  auto [start, end] = SelectionRange();
+  return buffer_.ToString().substr(buffer_.ByteOffset(start.row, start.col),
+                                    buffer_.ByteOffset(end.row, end.col) -
+                                        buffer_.ByteOffset(start.row, start.col));
+}
+
+std::string Document::SelectionOrLineText() const {
+  if (HasSelection()) return SelectedText();
+  return std::string(buffer_.Line(cursor_.row)) + "\n";
+}
+
+void Document::DeleteSelection() {
+  auto [start, end] = SelectionRange();
+  auto [text, edit] = buffer_.DeleteRange(start.row, start.col, end.row, end.col);
+  (void)text;
+  cursor_ = start;
+  selection_anchor_.reset();
+  if (highlighter_) highlighter_->Edit(edit, buffer_.ToString());
+}
+
+void Document::CutSelectionOrLine() {
+  if (HasSelection()) {
+    DeleteSelection();
+  } else {
+    DeleteLine();
+  }
+}
+
 bool Document::Undo() {
+  selection_anchor_.reset();  // buffer content shifts arbitrarily -- see DeleteLine's own comment
   BufferEdit edit{};
   bool ok = buffer_.Undo(&cursor_, &edit);
   if (ok && highlighter_) highlighter_->Edit(edit, buffer_.ToString());
@@ -183,6 +253,7 @@ bool Document::Undo() {
 }
 
 bool Document::Redo() {
+  selection_anchor_.reset();
   BufferEdit edit{};
   bool ok = buffer_.Redo(&cursor_, &edit);
   if (ok && highlighter_) highlighter_->Edit(edit, buffer_.ToString());

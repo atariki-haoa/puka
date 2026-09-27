@@ -96,17 +96,32 @@ std::vector<Binding> DefaultKeymap() {
       {Event::CtrlZ, "undo", "Ctrl+Z", "Undo"},
       {Event::CtrlY, "redo", "Ctrl+Y", "Redo"},
 
+      // VSCode's own chords for these. Ctrl+C used to reach FTXUI's default
+      // "unhandled Ctrl+C raises SIGINT" behavior (see app.cpp's
+      // force_handle_ctrl_c_, which defaults to true) -- an accidental,
+      // signal-driven quit rather than a real command. Claiming it for Copy
+      // requires screen_.ForceHandleCtrlC(false) in Application::Run(), the
+      // same treatment Ctrl+Z already gets there for Undo. Ctrl+Q remains the
+      // one intentional quit chord. Ctrl+X needs no fallback chord: nothing
+      // in this codebase or common terminals intercepts it, and readline's
+      // own Ctrl+X prefix is shell-line-editing-only -- it doesn't apply once
+      // puka owns the raw terminal, the same reasoning already used for
+      // Ctrl+K above.
+      {Event::CtrlC, "editor.action.clipboardCopyAction", "Ctrl+C",
+       "Copy (selection, or current line)"},
+      {Event::CtrlX, "editor.action.clipboardCutAction", "Ctrl+X",
+       "Cut (selection, or current line)"},
+
       // F1 is the conventional "help" key and, unlike punctuation like '?',
       // is never a character a user would type into search/editor text, so
       // it's safe to bind globally without shadowing normal input.
       {Event::F1, "workbench.action.toggleShortcutsHelp", "F1", "to info"},
 
-      // Ctrl+C already exits (FTXUI raises SIGINT for any unhandled
-      // Ctrl+C), but that's a signal-driven kill, not a real "quit"
-      // command. Ctrl+Q is the common IDE/terminal-app quit chord and, like
-      // Ctrl+S above, reaches the app fine despite historically being an
-      // XON/XOFF flow-control byte -- FTXUI's raw terminal mode disables
-      // that.
+      // Ctrl+Q is the common IDE/terminal-app quit chord and, like Ctrl+S
+      // above, reaches the app fine despite historically being an XON/XOFF
+      // flow-control byte -- FTXUI's raw terminal mode disables that. It's
+      // the one intentional quit chord now that Ctrl+C is Copy (see that
+      // binding's own comment above).
       {Event::CtrlQ, "workbench.action.quit", "Ctrl+Q", "Quit puka"},
   };
 

@@ -41,6 +41,13 @@ void FileTree::EnsureChildrenLoaded(FileTreeNode& node) {
     if (a->is_directory != b->is_directory) return a->is_directory;
     return a->name < b->name;
   });
+
+  // Stamped right after the listing above so RefreshExternalChanges()'s very
+  // next comparison reflects this load, not a stale/default value -- this is
+  // the one call site both the initial load and every RefreshChildren() (via
+  // its own call into this function) funnel through.
+  std::error_code mtime_ec;
+  node.known_mtime = std::filesystem::last_write_time(node.path, mtime_ec);
 }
 
 void FileTree::ToggleExpanded(FileTreeNode& node) {
@@ -86,6 +93,28 @@ std::vector<FileTree::VisibleRow> FileTree::VisibleRows() {
   std::vector<VisibleRow> out;
   for (auto& child : root_->children) CollectVisible(*child, 0, out);
   return out;
+}
+
+bool FileTree::RefreshExternalChanges() { return RefreshExternalChangesRecursive(*root_); }
+
+bool FileTree::RefreshExternalChangesRecursive(FileTreeNode& node) {
+  if (!node.is_directory || !node.expanded || !node.children_loaded) return false;
+
+  std::error_code ec;
+  auto mtime = std::filesystem::last_write_time(node.path, ec);
+  bool changed = false;
+  if (!ec && mtime != node.known_mtime) {
+    // Rebuilds `node.children` (RefreshChildren -> EnsureChildrenLoaded also
+    // re-stamps known_mtime), so the loop below always recurses into the
+    // fresh listing, never a stale one.
+    RefreshChildren(node);
+    changed = true;
+  }
+
+  for (auto& child : node.children) {
+    changed |= RefreshExternalChangesRecursive(*child);
+  }
+  return changed;
 }
 
 }  // namespace puka

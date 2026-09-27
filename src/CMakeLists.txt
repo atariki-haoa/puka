@@ -1,3 +1,4 @@
+add_subdirectory(clipboard)
 add_subdirectory(fs)
 add_subdirectory(git)
 add_subdirectory(syntax)

@@ -40,6 +40,14 @@ class FileTreeView : public ftxui::ComponentBase {
   // same Application-side suppression as CreatingFile() above.
   bool DeletingFile() const { return deleting_file_; }
 
+  // Re-checks the tree against disk for changes made outside puka (e.g. a
+  // `mkdir`/file creation from another terminal) and refreshes affected rows,
+  // preserving the current selection by path. No-op while a create/delete
+  // prompt is open: FileTree::RefreshChildren() replaces node objects
+  // wholesale, which would dangle new_file_dir_node_/delete_target_ out from
+  // under an in-progress prompt (see StartCreateFile/StartDeleteFile).
+  void CheckExternalChanges();
+
  private:
   void RefreshVisible();
   void StartCreateFile(bool is_folder);

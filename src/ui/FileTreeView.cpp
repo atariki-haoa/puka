@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <fstream>
+#include <optional>
 
 #include <ftxui/component/event.hpp>
 #include <ftxui/component/mouse.hpp>
@@ -41,6 +42,24 @@ FileTreeView::FileTreeView(std::filesystem::path root,
 void FileTreeView::RefreshVisible() {
   visible_ = tree_.VisibleRows();
   selected_ = visible_.empty() ? 0 : std::clamp(selected_, 0, static_cast<int>(visible_.size()) - 1);
+}
+
+void FileTreeView::CheckExternalChanges() {
+  if (creating_file_ || deleting_file_) return;
+
+  std::optional<std::filesystem::path> selected_path;
+  if (!visible_.empty()) selected_path = visible_[static_cast<size_t>(selected_)].node->path;
+
+  if (!tree_.RefreshExternalChanges()) return;
+
+  RefreshVisible();
+  if (!selected_path) return;
+  for (int i = 0; i < static_cast<int>(visible_.size()); ++i) {
+    if (visible_[static_cast<size_t>(i)].node->path == *selected_path) {
+      selected_ = i;
+      break;
+    }
+  }
 }
 
 Element FileTreeView::OnRender() {

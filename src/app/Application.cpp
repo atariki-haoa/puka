@@ -8,6 +8,7 @@
 #include <ftxui/component/component.hpp>
 #include <ftxui/screen/terminal.hpp>
 
+#include "clipboard/Clipboard.hpp"
 #include "keys/KeymapDefaults.hpp"
 #include "search/SearchService.hpp"
 #include "ui/EditorView.hpp"
@@ -59,8 +60,10 @@ std::string ShortcutsHint(const std::vector<Binding>& bindings) {
 // user's last manual fetch/pull/push), so this interval is about UI
 // liveness, not request budget -- a few seconds is imperceptible against a
 // git status scan that the codebase already treats as cheap enough to run
-// on every keypress-triggered refresh.
-constexpr std::chrono::seconds kGitPollInterval{2};
+// on every keypress-triggered refresh. The Explorer's external-change check
+// (a few stat() calls on already-expanded directories) is cheap enough to
+// share the same cadence.
+constexpr std::chrono::seconds kPollInterval{2};
 
 std::vector<ShortcutEntry> ContextualShortcutEntries() {
   return {
@@ -75,6 +78,7 @@ std::vector<ShortcutEntry> ContextualShortcutEntries() {
       {"Enter / ↓", "Find: jump to next match (Editor, find bar open)"},
       {"↑", "Find: jump to previous match (Editor, find bar open)"},
       {"Esc", "Close the find bar (Editor)"},
+      {"Shift+arrows / Shift+Home / Shift+End", "Extend text selection (Editor)"},
       {"n", "Create a new file (Explorer, focused)"},
       {"N", "Create a new folder (Explorer, focused)"},
       {"Enter", "Confirm new file/folder name (Explorer, prompt open)"},
@@ -161,14 +165,15 @@ int Application::Run() {
     return command.has_value() && commands_.Dispatch(*command);
   });
 
-  // FTXUI's default Ctrl-Z handler otherwise wins even when a component
-  // "catches" Event::CtrlZ -- verified empirically that force=false is what
-  // lets our own Undo binding receive it instead.
+  // FTXUI's default Ctrl-Z/Ctrl-C handlers otherwise win even when a
+  // component "catches" the event -- verified empirically that force=false
+  // is what lets our own Undo/Copy bindings receive them instead.
   screen_.ForceHandleCtrlZ(false);
+  screen_.ForceHandleCtrlC(false);
 
-  StartGitPollThread();
+  StartPollThread();
   screen_.Loop(root);
-  StopGitPollThread();
+  StopPollThread();
   return 0;
 }
 
@@ -213,6 +218,15 @@ void Application::RegisterCommands() {
   commands_.Register("editor.action.deleteLine", [this] {
     if (auto* doc = documents_.Active()) doc->DeleteLine();
   });
+  commands_.Register("editor.action.clipboardCopyAction", [this] {
+    if (auto* doc = documents_.Active()) Clipboard::Write(doc->SelectionOrLineText());
+  });
+  commands_.Register("editor.action.clipboardCutAction", [this] {
+    if (auto* doc = documents_.Active()) {
+      Clipboard::Write(doc->SelectionOrLineText());
+      doc->CutSelectionOrLine();
+    }
+  });
   commands_.Register("workbench.action.closeActiveEditor", [this] { documents_.CloseActive(); });
   commands_.Register("workbench.action.nextEditor", [this] { documents_.NextTab(); });
   commands_.Register("workbench.action.previousEditor", [this] { documents_.PrevTab(); });
@@ -234,38 +248,40 @@ void Application::RegisterCommands() {
   commands_.Register("workbench.action.quit", [this] { screen_.Exit(); });
 }
 
-void Application::StartGitPollThread() {
-  // The thread itself never calls into libgit2 -- it only sleeps and wakes
-  // the main loop via the thread-safe screen_.Post(), which runs the actual
-  // RefreshGitStatus() (and the GetRepoStatus() call inside it) back on the
-  // main/loop thread, the same thread every other git refresh already runs
-  // on. That sidesteps any question of whether GitService's synchronous,
-  // reopen-every-call design is safe to invoke concurrently with itself.
-  git_poll_thread_ = std::thread([this] {
-    std::unique_lock<std::mutex> lock(git_poll_mutex_);
-    while (!git_poll_cv_.wait_for(lock, kGitPollInterval,
-                                   [this] { return git_poll_stop_.load(); })) {
-      // Post(Closure) alone runs RefreshGitStatus() but does NOT mark
-      // FTXUI's frame dirty -- App::Internal::HandleTask only clears
-      // frame_valid_ on its Event branch, not its Closure branch, so
-      // Draw() would silently no-op without this. PostEvent(Event::Custom)
-      // is FTXUI's own idiom for "redraw, no event semantics attached"
-      // (see its use in app.cpp after a selection change).
+void Application::StartPollThread() {
+  // The thread itself never calls into libgit2 or touches the filesystem --
+  // it only sleeps and wakes the main loop via the thread-safe screen_.Post(),
+  // which runs the actual RefreshGitStatus() (and the GetRepoStatus() call
+  // inside it) and FileTreeView::CheckExternalChanges() back on the main/loop
+  // thread, the same thread every other git refresh and Explorer mutation
+  // already runs on. That sidesteps any question of whether GitService's
+  // synchronous, reopen-every-call design -- or FileTree's node-rebuilding
+  // RefreshChildren() -- is safe to invoke concurrently with itself/the UI.
+  poll_thread_ = std::thread([this] {
+    std::unique_lock<std::mutex> lock(poll_mutex_);
+    while (!poll_cv_.wait_for(lock, kPollInterval, [this] { return poll_stop_.load(); })) {
+      // Post(Closure) alone runs the two refreshes but does NOT mark FTXUI's
+      // frame dirty -- App::Internal::HandleTask only clears frame_valid_ on
+      // its Event branch, not its Closure branch, so Draw() would silently
+      // no-op without this. PostEvent(Event::Custom) is FTXUI's own idiom for
+      // "redraw, no event semantics attached" (see its use in app.cpp after a
+      // selection change).
       screen_.Post([this] {
         RefreshGitStatus();
+        file_tree_view_->CheckExternalChanges();
         screen_.PostEvent(Event::Custom);
       });
     }
   });
 }
 
-void Application::StopGitPollThread() {
+void Application::StopPollThread() {
   {
-    std::lock_guard<std::mutex> lock(git_poll_mutex_);
-    git_poll_stop_ = true;
+    std::lock_guard<std::mutex> lock(poll_mutex_);
+    poll_stop_ = true;
   }
-  git_poll_cv_.notify_all();
-  if (git_poll_thread_.joinable()) git_poll_thread_.join();
+  poll_cv_.notify_all();
+  if (poll_thread_.joinable()) poll_thread_.join();
 }
 
 void Application::RefreshGitStatus() {

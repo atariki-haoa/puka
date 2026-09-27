@@ -2,6 +2,14 @@ add_executable(test_buffer_edits test_buffer_edits.cpp)
 target_link_libraries(test_buffer_edits PRIVATE puka_editor)
 add_test(NAME test_buffer_edits COMMAND test_buffer_edits)
 
+add_executable(test_document_selection test_document_selection.cpp)
+target_link_libraries(test_document_selection PRIVATE puka_editor)
+add_test(NAME test_document_selection COMMAND test_document_selection)
+
+add_executable(test_clipboard_osc52 test_clipboard_osc52.cpp)
+target_link_libraries(test_clipboard_osc52 PRIVATE puka_clipboard)
+add_test(NAME test_clipboard_osc52 COMMAND test_clipboard_osc52)
+
 add_executable(test_keymap_dispatch test_keymap_dispatch.cpp)
 target_link_libraries(test_keymap_dispatch PRIVATE puka_keys)
 add_test(NAME test_keymap_dispatch COMMAND test_keymap_dispatch)

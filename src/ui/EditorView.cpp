@@ -17,25 +17,60 @@ using namespace ftxui;
 
 namespace {
 
+// VSCode Dark+'s own `editor.selectionBackground`, consistent with the rest
+// of the palette in syntax/Theme.cpp (also sourced from Dark+).
+const Color kSelectionBg = Color::RGB(0x26, 0x4F, 0x78);
+
 struct Fragment {
   size_t start_col, end_col;
   std::string_view capture;
-  // Rendered inverted for the plain text cursor, or as a yellow highlight
-  // when this fragment is a Ctrl+F match instead -- the two never coexist
-  // on the same line (RenderLine only ever splices one or the other).
+  // More than one can apply to the same fragment (e.g. the cursor sitting
+  // inside an active selection) -- the render loop below applies selected,
+  // then is_match, then is_cursor last, so the cursor cell always stays the
+  // most visible of the three.
+  bool selected = false;
   bool is_cursor = false;
+  bool is_match = false;
 };
 
+// Splits `fragments` so that [start, end) has `mark` applied to it,
+// preserving each fragment's existing capture/flags on both sides of the
+// cut -- including when the range spans more than one capture-colored
+// fragment, unlike a splice that only ever touches the one fragment
+// containing `start`. No-ops (returns `fragments` unchanged) if the range is
+// empty or doesn't intersect anything -- callers own the "nothing to splice
+// into" phantom-cell case themselves (see RenderLine).
+template <typename Mark>
+std::vector<Fragment> SpliceRange(std::vector<Fragment> fragments, size_t start, size_t end, Mark mark) {
+  if (end <= start) return fragments;
+  std::vector<Fragment> out;
+  for (const auto& f : fragments) {
+    size_t s = std::max(f.start_col, start);
+    size_t e = std::min(f.end_col, end);
+    if (s >= e) {
+      out.push_back(f);
+      continue;
+    }
+    if (f.start_col < s) out.push_back({f.start_col, s, f.capture, f.selected, f.is_cursor, f.is_match});
+    Fragment marked = f;
+    marked.start_col = s;
+    marked.end_col = e;
+    mark(marked);
+    out.push_back(marked);
+    if (e < f.end_col) out.push_back({e, f.end_col, f.capture, f.selected, f.is_cursor, f.is_match});
+  }
+  return out;
+}
+
 // Builds one line's colored fragments (from the document's highlight spans,
-// if any). For the cursor's own line, splices in a one-column fragment at
-// the cursor position so it can be rendered inverted -- without losing that
-// column's original capture color on either side of the split. When
-// `match_range` is set (only ever true for the current active Ctrl+F match's
-// own line), that whole [start,end) span is splice-highlighted instead of
-// the single-column cursor cell, so a multi-character match is visible as
-// more than just where the cursor happens to land.
+// if any), then layers the active selection (if any part of it falls on this
+// row), then the cursor's own single-column cell or a Ctrl+F match range --
+// mutually exclusive per row, same as before: a match on the cursor's own
+// row (always true right after a search jump, since that's what moves the
+// cursor there) shows the match highlight instead of the inverted cursor.
 Element RenderLine(const Document& doc, size_t row, bool is_current,
-                    std::optional<std::pair<size_t, size_t>> match_range) {
+                    std::optional<std::pair<size_t, size_t>> match_range,
+                    std::optional<std::pair<size_t, size_t>> selection_range_on_row) {
   std::string_view line_text = doc.buffer().Line(row);
   size_t line_start_byte = doc.buffer().ByteOffset(row, 0);
 
@@ -50,53 +85,48 @@ Element RenderLine(const Document& doc, size_t row, bool is_current,
   }
   if (pos < line_text.size()) fragments.push_back({pos, line_text.size(), ""});
 
+  if (selection_range_on_row) {
+    auto [sel_start, sel_end] = *selection_range_on_row;
+    if (line_text.empty() && sel_end > sel_start) {
+      // An empty line fully inside a multi-line selection has no fragment
+      // for SpliceRange to cut into -- without this it would render as a
+      // gap in the middle of an otherwise-highlighted selection.
+      fragments = {{0, 1, "", true, false, false}};
+    } else {
+      fragments = SpliceRange(std::move(fragments), sel_start, std::min(sel_end, line_text.size()),
+                               [](Fragment& f) { f.selected = true; });
+    }
+  }
+
   if (match_range) {
     size_t start = std::min(match_range->first, line_text.size());
-    size_t end = std::min(std::max(match_range->second, start + 1), line_text.size() + 1);
-    std::vector<Fragment> spliced;
-    bool inserted = false;
-    for (const auto& f : fragments) {
-      if (!inserted && start >= f.start_col && start < f.end_col) {
-        if (start > f.start_col) spliced.push_back({f.start_col, start, f.capture, false});
-        size_t seg_end = std::min(end, f.end_col);
-        spliced.push_back({start, seg_end, f.capture, true});
-        if (seg_end < f.end_col) spliced.push_back({seg_end, f.end_col, f.capture, false});
-        inserted = true;
-      } else {
-        spliced.push_back(f);
-      }
+    size_t end = std::min(match_range->second, line_text.size());
+    if (start >= line_text.size()) {
+      fragments.push_back({start, start + 1, "", false, false, true});
+    } else {
+      fragments = SpliceRange(std::move(fragments), start, end, [](Fragment& f) { f.is_match = true; });
     }
-    if (!inserted) spliced.push_back({start, start + 1, "", true});
-    fragments = std::move(spliced);
   } else if (is_current) {
     size_t cursor_col = std::min(doc.cursor().col, line_text.size());
-    std::vector<Fragment> spliced;
-    bool inserted = false;
-    for (const auto& f : fragments) {
-      if (!inserted && cursor_col >= f.start_col && cursor_col < f.end_col) {
-        if (cursor_col > f.start_col) spliced.push_back({f.start_col, cursor_col, f.capture, false});
-        spliced.push_back({cursor_col, cursor_col + 1, f.capture, true});
-        if (cursor_col + 1 < f.end_col) spliced.push_back({cursor_col + 1, f.end_col, f.capture, false});
-        inserted = true;
-      } else {
-        spliced.push_back(f);
-      }
-    }
-    if (!inserted) {
+    if (cursor_col >= line_text.size()) {
       // Cursor past end of line (or the line is empty) -- a phantom cell.
-      spliced.push_back({cursor_col, cursor_col + 1, "", true});
+      fragments.push_back({cursor_col, cursor_col + 1, "", false, true, false});
+    } else {
+      fragments = SpliceRange(std::move(fragments), cursor_col, cursor_col + 1,
+                               [](Fragment& f) { f.is_cursor = true; });
     }
-    fragments = std::move(spliced);
   }
 
   Elements parts;
   for (const auto& f : fragments) {
-    std::string segment = (f.is_cursor && f.start_col >= line_text.size())
+    std::string segment = (f.start_col >= line_text.size())
                                ? " "
                                : std::string(line_text.substr(f.start_col, f.end_col - f.start_col));
     Element el = text(segment);
     if (!f.capture.empty()) el = ApplyCaptureStyle(f.capture, el);
-    if (f.is_cursor) el = el | (match_range ? bgcolor(Color::Yellow) | color(Color::Black) : inverted);
+    if (f.selected) el = el | bgcolor(kSelectionBg);
+    if (f.is_match) el = el | bgcolor(Color::Yellow) | color(Color::Black);
+    if (f.is_cursor) el = el | inverted;
     parts.push_back(el);
   }
   return parts.empty() ? text("") : hbox(std::move(parts));
@@ -138,6 +168,16 @@ Element EditorView::OnRender() {
       match_range = {find_match_start_col_, find_match_end_col_};
     }
 
+    std::optional<std::pair<size_t, size_t>> selection_range_on_row;
+    if (doc.HasSelection()) {
+      auto [sel_start, sel_end] = doc.SelectionRange();
+      if (row >= sel_start.row && row <= sel_end.row) {
+        size_t s = (row == sel_start.row) ? sel_start.col : 0;
+        size_t e = (row == sel_end.row) ? sel_end.col : doc.buffer().Line(row).size();
+        selection_range_on_row = {s, e};
+      }
+    }
+
     std::string number = std::to_string(row + 1);
     std::string gutter_text(digits - number.size(), ' ');
     gutter_text += number;
@@ -148,7 +188,7 @@ Element EditorView::OnRender() {
     // The cursor is rendered as an inverted (block-style) character spliced
     // into the colored fragments, rather than relying on the terminal's own
     // cursor, which FTXUI doesn't otherwise place for us here.
-    Element code = RenderLine(doc, row, is_current, match_range);
+    Element code = RenderLine(doc, row, is_current, match_range, selection_range_on_row);
     lines.push_back(hbox({gutter, code}));
   }
 
@@ -229,6 +269,18 @@ bool EditorView::OnEvent(Event event) {
   if (event == Event::ArrowDown) { doc->MoveDown(); return true; }
   if (event == Event::Home) { doc->MoveHome(); return true; }
   if (event == Event::End) { doc->MoveEnd(); return true; }
+
+  // Shift+<key> text selection. Like Alt+Right/Alt+Left in KeymapDefaults.cpp
+  // (see that file's own comment), FTXUI has no named event for these, so
+  // these are the raw xterm CSI sequences with modifier code 2 (Shift) --
+  // reaches puka in most modern terminal emulators, but isn't guaranteed
+  // universally the way the plain arrows above are.
+  if (event == Event::Special("\x1B[1;2D")) { doc->MoveLeft(true); return true; }
+  if (event == Event::Special("\x1B[1;2C")) { doc->MoveRight(true); return true; }
+  if (event == Event::Special("\x1B[1;2A")) { doc->MoveUp(true); return true; }
+  if (event == Event::Special("\x1B[1;2B")) { doc->MoveDown(true); return true; }
+  if (event == Event::Special("\x1B[1;2H")) { doc->MoveHome(true); return true; }
+  if (event == Event::Special("\x1B[1;2F")) { doc->MoveEnd(true); return true; }
   if (event == Event::PageUp || event == Event::PageDown) {
     size_t page = static_cast<size_t>(std::max(1, Terminal::Size().dimy - 4));
     if (event == Event::PageUp) doc->MovePageUp(page);

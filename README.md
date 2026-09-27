@@ -148,7 +148,7 @@ the Actions tab and pick `major`/`minor`/`patch` instead of `auto`.
 
 | Action | Chord(s) |
 |---|---|
-| Quit puka | `Ctrl+C` |
+| Quit puka | `Ctrl+Q` |
 | Toggle sidebar | `Ctrl+B` |
 | Switch focus between sidebar and editor | `Escape` |
 | Explorer (files) / Search / Source Control | `Alt+B` / `Alt+F` / `Alt+G` |
@@ -158,7 +158,9 @@ the Actions tab and pick `major`/`minor`/`patch` instead of `auto`.
 | Next / previous tab | `Ctrl+Right` / `Ctrl+Left` |
 | Go to tab 1-9 | `Alt+1` .. `Alt+9` |
 | Undo / Redo | `Ctrl+Z` / `Ctrl+Y` |
-| Move / select | Arrows, Home, End, PageUp, PageDown |
+| Move / extend selection | Arrows, Home, End, PageUp, PageDown (hold `Shift` to select) |
+| Copy (selection, or current line) | `Ctrl+C` |
+| Cut (selection, or current line) | `Ctrl+X` |
 | Switch tab / sidebar view, open a file, expand a folder | Mouse click |
 | Refresh git status (while Source Control is focused) | `F5` |
 | Toggle Source Control List/Tree view (while focused) | `t` |
@@ -181,7 +183,14 @@ recommended way to move focus back to the sidebar. `Alt+Right`/`Alt+Left` are
 raw xterm escape sequences rather than an FTXUI-named event (there isn't
 one), so they're the least portable bindings here -- if they don't reach
 puka in your terminal, `Alt+B`/`Alt+F`/`Alt+G` reach the same views
-directly. `Shift+Enter` in Source Control is in the same boat -- most
+directly. `Shift`+arrow/Home/End for selection are raw xterm sequences in the
+same boat -- reach puka in most modern terminal emulators, but aren't
+guaranteed everywhere. Copy/Cut write to the real OS clipboard on a
+best-effort basis: `xclip`/`xsel`/`wl-copy` (Linux) or `pbcopy` (macOS) if
+installed, otherwise an OSC 52 escape sequence, which most terminals that
+support it (kitty, iTerm2, alacritty, wezterm, ...) forward to the system
+clipboard even over SSH. `Shift+Enter` in Source Control is in the same
+boat -- most
 terminals send the exact same bytes for `Enter` and `Shift+Enter` by
 default, so `o` is a guaranteed-reliable fallback bound to the same "open
 directly" action. `Alt+1`..`Alt+9` likewise stand in for VSCode's
